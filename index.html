@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sigma Invo - Studio Manager</title>
+    <title>Sigma Invo - Professional Studio Manager</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -15,10 +15,9 @@
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
         body { background-color: #020617; color: white; font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; }
         .sidebar-btn { transition: all 0.2s; border-radius: 12px; display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
-        .sidebar-btn:hover { background: #1e293b; color: #3b82f6; }
         .btn-active { background: #2563eb !important; color: white !important; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
         .glass-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 24px; }
-        @media print { .no-print { display: none !important; } .print-only { display: block !important; } body { background: white; color: black; } }
+        @media print { .no-print { display: none !important; } body { background: white; color: black; } }
         .custom-scroll::-webkit-scrollbar { width: 5px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
     </style>
@@ -47,29 +46,44 @@
             const [inventory, setInventory] = useState([]);
             const [cart, setCart] = useState([]);
             const [client, setClient] = useState({ name: '', phone: '' });
-            const [isInitialLoading, setInitialLoading] = useState(true);
+            const [loading, setLoading] = useState(true);
+            const [newItem, setNewItem] = useState({ name: '', price: '' });
 
             useEffect(() => {
+                // Safety timeout to force load UI even if Firebase is slow
+                const safetyTimer = setTimeout(() => setLoading(false), 5000);
+
                 const unsubAuth = auth.onAuthStateChanged(user => {
                     if (user) {
                         const unsubInv = db.collection('inventory').onSnapshot(s => {
                             setInventory(s.docs.map(d => ({id: d.id, ...d.data()})));
-                            setInitialLoading(false);
-                        }, () => setInitialLoading(false));
+                            setLoading(false);
+                            clearTimeout(safetyTimer);
+                        }, () => setLoading(false));
                         return () => unsubInv();
                     } else {
                         auth.signInAnonymously();
                     }
                 });
-                return () => unsubAuth();
+                return () => {
+                    unsubAuth();
+                    clearTimeout(safetyTimer);
+                };
             }, []);
+
+            const addGear = () => {
+                if(newItem.name && newItem.price) {
+                    db.collection('inventory').add({ name: newItem.name, price: Number(newItem.price) });
+                    setNewItem({ name: '', price: '' });
+                }
+            };
 
             const total = cart.reduce((s, i) => s + (Number(i.price) || 0), 0);
 
-            if (isInitialLoading) return (
+            if (loading) return (
                 <div className="h-screen flex flex-col items-center justify-center bg-[#020617]">
-                    <div className="w-8 h-8 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="mt-4 text-slate-500 font-bold uppercase tracking-widest text-[9px]">Sigma System Connecting...</p>
+                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="mt-4 text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px]">Initializing Sigma Hub...</p>
                 </div>
             );
 
@@ -78,121 +92,102 @@
                     {/* Sidebar Area */}
                     <aside className="w-64 bg-[#0f172a] border-r border-[#1e293b] p-6 flex flex-col no-print">
                         <div className="flex items-center gap-3 mb-10 px-2">
-                            <div className="bg-blue-600 h-9 w-9 rounded-xl flex items-center justify-center font-bold shadow-lg shadow-blue-600/20 text-white">Σ</div>
-                            <h1 className="text-xl font-black italic tracking-tighter text-white uppercase">Sigma Invo</h1>
+                            <div className="bg-blue-600 h-9 w-9 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-blue-600/20 text-lg">Σ</div>
+                            <h1 className="text-xl font-black italic tracking-tighter text-white">SIGMA INVO</h1>
                         </div>
                         
                         <nav className="flex-1 space-y-1">
                             <button onClick={()=>setActiveTab('dashboard')} className={`sidebar-btn ${activeTab==='dashboard'?'btn-active':'text-slate-400'}`}>Dashboard</button>
                             <button onClick={()=>setActiveTab('billing')} className={`sidebar-btn ${activeTab==='billing'?'btn-active':'text-slate-400'}`}>New Invoice</button>
-                            <button onClick={()=>setActiveTab('inventory')} className={`sidebar-btn ${activeTab==='inventory'?'btn-active':'text-slate-400'}`}>Inventory</button>
+                            <button onClick={()=>setActiveTab('inventory')} className={`sidebar-btn ${activeTab==='inventory'?'btn-active':'text-slate-400'}`}>Equipment</button>
                         </nav>
 
                         <div className="mt-auto pt-6 border-t border-slate-800/50">
-                            <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.2em] text-center">Salalah, Sultanate of Oman</p>
+                            <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest text-center">Salalah, Oman</p>
                         </div>
                     </aside>
 
-                    {/* Main Content Area */}
+                    {/* Content Area */}
                     <main className="flex-1 bg-[#020617] overflow-y-auto custom-scroll p-10 no-print">
                         {activeTab === 'dashboard' && (
-                            <div className="max-w-5xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-                                <h2 className="text-4xl font-extrabold tracking-tight mb-2">Studio Hub</h2>
-                                <p className="text-slate-500 font-medium mb-10">Welcome back, Sajin. Here is your overview.</p>
-                                
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="glass-card p-10 bg-slate-900 shadow-2xl relative group">
-                                        <div className="absolute top-0 right-0 p-8 opacity-5 text-4xl group-hover:scale-110 transition">📦</div>
-                                        <p className="text-blue-500 text-xs font-black uppercase tracking-widest mb-2">Total Gear</p>
-                                        <h3 className="text-5xl font-black">{inventory.length}</h3>
+                            <div className="max-w-5xl animate-in fade-in duration-700">
+                                <h2 className="text-4xl font-black italic tracking-tight mb-8">Studio Overview</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="glass-card p-10 bg-slate-900/50 relative overflow-hidden">
+                                        <p className="text-blue-500 text-[10px] font-black uppercase tracking-widest mb-2">Inventory Items</p>
+                                        <h3 className="text-6xl font-black">{inventory.length}</h3>
+                                        <div className="absolute top-0 right-0 p-8 opacity-5 text-5xl italic font-black">GEAR</div>
                                     </div>
-                                    <div className="glass-card p-10 bg-slate-900 shadow-2xl">
-                                        <p className="text-green-500 text-xs font-black uppercase tracking-widest mb-2">System Status</p>
-                                        <h3 className="text-4xl font-black uppercase tracking-tight">Active</h3>
+                                    <div className="glass-card p-10 bg-slate-900/50">
+                                        <p className="text-green-500 text-[10px] font-black uppercase tracking-widest mb-2">App Status</p>
+                                        <h3 className="text-4xl font-black uppercase">Live & Ready</h3>
                                     </div>
                                 </div>
                             </div>
                         )}
 
                         {activeTab === 'inventory' && (
-                            <div className="max-w-4xl glass-card overflow-hidden bg-slate-900 shadow-2xl">
-                                <div className="p-6 border-b border-slate-800 flex justify-between items-center bg-slate-900/50">
-                                    <h3 className="font-bold text-lg">Equipment Management</h3>
-                                    <button className="bg-blue-600 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-blue-600/20">Add Item</button>
+                            <div className="max-w-4xl space-y-6">
+                                <div className="glass-card p-6 bg-slate-900/50 flex gap-4">
+                                    <input placeholder="Gear Name (e.g. Sony A1)" className="flex-1 bg-slate-950 border border-slate-800 p-4 rounded-xl outline-none" value={newItem.name} onChange={e=>setNewItem({...newItem, name:e.target.value})} />
+                                    <input placeholder="OMR" className="w-28 bg-slate-950 border border-slate-800 p-4 rounded-xl outline-none" value={newItem.price} onChange={e=>setNewItem({...newItem, price:e.target.value})} />
+                                    <button onClick={addGear} className="bg-blue-600 px-8 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition">Add Gear</button>
                                 </div>
-                                <table className="w-full text-left">
-                                    <thead className="text-[10px] uppercase text-slate-500 font-black tracking-widest bg-[#020617]/50">
-                                        <tr><th className="p-6">Gear Description</th><th className="p-6 text-right">Daily Rate (OMR)</th></tr>
-                                    </thead>
-                                    <tbody className="divide-y divide-slate-800/50">
-                                        {inventory.length > 0 ? inventory.map(item => (
-                                            <tr key={item.id} className="hover:bg-blue-600/5 transition">
-                                                <td className="p-6 font-extrabold text-slate-200">{item.name}</td>
-                                                <td className="p-6 text-right font-black text-blue-400 text-lg tracking-tighter">{Number(item.price).toFixed(3)}</td>
-                                            </tr>
-                                        )) : (
-                                            <tr><td colSpan="2" className="p-20 text-center text-slate-600 font-bold uppercase tracking-widest text-xs italic">Inventory is empty</td></tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                <div className="glass-card overflow-hidden bg-slate-900/50">
+                                    <table className="w-full text-left">
+                                        <thead className="text-[10px] uppercase text-slate-500 font-black tracking-widest bg-[#020617]/80">
+                                            <tr><th className="p-6">Description</th><th className="p-6 text-right">Daily Rate</th></tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-slate-800/50">
+                                            {inventory.map(item => (
+                                                <tr key={item.id} className="hover:bg-blue-600/5 transition">
+                                                    <td className="p-6 font-extrabold text-slate-200 uppercase text-sm">{item.name}</td>
+                                                    <td className="p-6 text-right font-black text-blue-400 text-lg tracking-tighter">{Number(item.price).toFixed(3)}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         )}
 
                         {activeTab === 'billing' && (
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                                 <div className="space-y-6">
-                                    <div className="glass-card p-8 bg-slate-900 shadow-xl">
-                                        <p className="text-blue-500 font-black text-[10px] uppercase mb-6 tracking-widest">Client Credentials</p>
-                                        <input placeholder="Customer Name" className="w-full bg-[#020617] border border-slate-800 p-5 rounded-2xl mb-4 outline-none focus:border-blue-600 transition" onChange={e=>setClient({...client, name:e.target.value})} />
-                                        <input placeholder="Phone / WhatsApp" className="w-full bg-[#020617] border border-slate-800 p-5 rounded-2xl outline-none focus:border-blue-600 transition" onChange={e=>setClient({...client, phone:e.target.value})} />
+                                    <div className="glass-card p-8 bg-slate-900/50">
+                                        <p className="text-blue-500 font-black text-[10px] uppercase mb-6 tracking-widest">Client Details</p>
+                                        <input placeholder="Customer Name" className="w-full bg-[#020617] border border-slate-800 p-5 rounded-2xl mb-4 outline-none" onChange={e=>setClient({...client, name:e.target.value})} />
+                                        <input placeholder="WhatsApp Number" className="w-full bg-[#020617] border border-slate-800 p-5 rounded-2xl outline-none" onChange={e=>setClient({...client, phone:e.target.value})} />
                                     </div>
-                                    <div className="glass-card p-8 bg-slate-900 h-96 overflow-y-auto custom-scroll shadow-xl">
-                                        <p className="text-purple-500 font-black text-[10px] uppercase mb-6 tracking-widest">Selection</p>
+                                    <div className="glass-card p-8 bg-slate-900/50 h-96 overflow-y-auto custom-scroll">
+                                        <p className="text-purple-500 font-black text-[10px] uppercase mb-6 tracking-widest">Select Equipment</p>
                                         {inventory.map(item => (
-                                            <button key={item.id} onClick={()=>setCart([...cart, {...item, cid:Date.now()}])} className="w-full flex justify-between items-center p-5 mb-3 bg-[#020617] rounded-2xl border border-slate-800 hover:border-blue-600 transition text-left group">
-                                                <div>
-                                                    <p className="font-bold text-sm group-hover:text-blue-400">{item.name}</p>
-                                                    <p className="text-[9px] text-slate-500 font-bold uppercase">Rental</p>
-                                                </div>
+                                            <button key={item.id} onClick={()=>setCart([...cart, {...item, cid:Date.now()}])} className="w-full flex justify-between items-center p-4 mb-2 bg-[#020617] rounded-xl border border-slate-800 hover:border-blue-600 transition text-left group">
+                                                <div><p className="font-bold text-sm uppercase">{item.name}</p></div>
                                                 <p className="font-black text-blue-400 tracking-tighter">{Number(item.price).toFixed(3)}</p>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
 
-                                {/* Modern A4 Invoice Design */}
-                                <div className="bg-white text-slate-900 p-12 rounded-[2.5rem] shadow-2xl h-fit border border-slate-100 flex flex-col">
-                                    <div className="flex justify-between border-b-2 border-slate-100 pb-10 mb-10">
-                                        <div>
-                                            <h1 className="text-3xl font-black italic tracking-tighter">SIGMA LENS</h1>
-                                            <p className="text-[10px] text-slate-400 font-black uppercase tracking-[0.2em]">Salalah, Oman</p>
-                                        </div>
-                                        <div className="text-right">
-                                            <h2 className="text-4xl font-black text-slate-100 tracking-tighter leading-none mb-1">INVOICE</h2>
-                                            <p className="text-[10px] font-bold text-slate-400">{new Date().toLocaleDateString()}</p>
-                                        </div>
+                                <div className="bg-white text-slate-950 p-12 rounded-[3rem] shadow-2xl h-fit border border-slate-100 flex flex-col">
+                                    <div className="flex justify-between border-b-2 border-slate-50 pb-10 mb-10">
+                                        <div><h1 className="text-3xl font-black italic tracking-tighter uppercase">Sigma Studio</h1><p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Salalah, Sultanate of Oman</p></div>
+                                        <div className="text-right font-black text-slate-100 text-4xl">INVOICE</div>
                                     </div>
-                                    
-                                    <div className="mb-10">
-                                        <p className="text-[9px] text-slate-300 font-black uppercase tracking-widest mb-1">Billed To:</p>
-                                        <p className="text-2xl font-black uppercase tracking-tight text-slate-800">{client.name || 'Walk-in Customer'}</p>
-                                        <p className="text-sm font-bold text-slate-400">{client.phone}</p>
-                                    </div>
-
+                                    <div className="mb-10 font-bold uppercase"><p className="text-[10px] text-slate-300 tracking-widest">Bill To:</p><p className="text-2xl text-slate-800">{client.name || 'Walk-in Client'}</p></div>
                                     <table className="w-full mb-10">
-                                        <thead><tr className="border-b-2 border-slate-50 text-[10px] text-slate-300 font-black uppercase tracking-widest"><th className="pb-4 text-left">Item</th><th className="pb-4 text-right">Rate</th></tr></thead>
+                                        <thead><tr className="border-b-2 border-slate-50 text-[10px] text-slate-300 font-black uppercase tracking-widest"><th className="pb-4 text-left">Item</th><th className="pb-4 text-right">Total</th></tr></thead>
                                         <tbody>
-                                            {cart.map((c,i)=>(<tr key={i} className="border-b border-slate-50"><td className="py-5 font-bold text-slate-600">{c.name}</td><td className="py-5 text-right font-black text-slate-900">{Number(c.price).toFixed(3)}</td></tr>))}
+                                            {cart.map((c,i)=>(<tr key={i} className="border-b border-slate-50"><td className="py-4 font-bold text-slate-600 uppercase text-xs">{c.name}</td><td className="py-4 text-right font-black text-slate-900">{Number(c.price).toFixed(3)}</td></tr>))}
                                         </tbody>
                                     </table>
-
-                                    <div className="flex justify-between items-center border-t-2 border-slate-100 pt-10">
-                                        <span className="text-xs font-black text-slate-300 uppercase tracking-[0.2em]">Grand Total OMR</span>
+                                    <div className="flex justify-between items-center pt-8 border-t-2 border-slate-100">
+                                        <span className="text-xs font-black text-slate-300 uppercase tracking-widest">Grand Total OMR</span>
                                         <span className="text-5xl font-black text-blue-600 tracking-tighter">{total.toFixed(3)}</span>
                                     </div>
-                                    
-                                    <button onClick={()=>window.print()} className="w-full mt-10 bg-slate-900 text-white py-6 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition shadow-xl no-print">Print Invoice</button>
-                                    <button onClick={()=>setCart([])} className="w-full mt-4 text-[10px] text-slate-300 font-bold uppercase no-print tracking-widest">Reset Form</button>
+                                    <button onClick={()=>window.print()} className="w-full mt-10 bg-slate-950 text-white py-6 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition shadow-xl no-print">Print Official Bill</button>
+                                    <button onClick={()=>setCart([])} className="w-full mt-4 text-[10px] text-slate-300 font-black uppercase no-print tracking-[0.3em]">Reset</button>
                                 </div>
                             </div>
                         )}
