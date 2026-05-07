@@ -11,15 +11,14 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <style>
-        @media print { .no-print { display: none !important; } }
-    </style>
 </head>
-<body>
+<body class="bg-slate-900">
     <div id="root"></div>
 
     <script type="text/babel">
-        // Fixed Firebase Config from your file
+        const { useState, useEffect } = React;
+
+        // Configuration updated from your file
         const firebaseConfig = {
             apiKey: "AIzaSyB3X7v-yLpE2-tSlate-400-size", 
             authDomain: "sigma-invo.firebaseapp.com",
@@ -29,41 +28,70 @@
             appId: "1:389274383502:web:6e387c978385802"
         };
 
-        firebase.initializeApp(firebaseConfig);
+        // Initialize Firebase
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebaseConfig);
+        }
         const db = firebase.firestore();
-        const auth = firebase.auth();
-
-        const { useState, useEffect } = React;
 
         function App() {
             const [activeTab, setActiveTab] = useState('dashboard');
-            
+
             return (
-                <div className="min-h-screen bg-slate-900 text-white font-sans">
-                    <nav className="no-print bg-slate-800 p-4 flex gap-4 border-b border-slate-700">
-                        <button onClick={() => setActiveTab('dashboard')} className={`px-4 py-2 rounded ${activeTab === 'dashboard' ? 'bg-blue-600' : 'bg-slate-700'}`}>Dashboard</button>
-                        <button onClick={() => setActiveTab('billing')} className={`px-4 py-2 rounded ${activeTab === 'billing' ? 'bg-blue-600' : 'bg-slate-700'}`}>Billing</button>
+                <div className="min-h-screen flex flex-col text-white font-sans">
+                    {/* Header */}
+                    <header className="bg-slate-800 border-b border-slate-700 p-4 flex justify-between items-center shadow-lg">
+                        <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center font-bold">Σ</div>
+                            <h1 className="text-xl font-bold tracking-tight">SIGMA LENS STUDIO</h1>
+                        </div>
+                        <div className="text-xs text-slate-400">SALALAH, OMAN</div>
+                    </header>
+
+                    {/* Navigation */}
+                    <nav className="bg-slate-800/50 p-2 flex gap-2 justify-center border-b border-slate-700/50">
+                        <button 
+                            onClick={() => setActiveTab('dashboard')} 
+                            className={`px-6 py-2 rounded-lg transition ${activeTab === 'dashboard' ? 'bg-blue-600 shadow-md' : 'hover:bg-slate-700 text-slate-400'}`}>
+                            Dashboard
+                        </button>
+                        <button 
+                            onClick={() => setActiveTab('billing')} 
+                            className={`px-6 py-2 rounded-lg transition ${activeTab === 'billing' ? 'bg-blue-600 shadow-md' : 'hover:bg-slate-700 text-slate-400'}`}>
+                            Billing
+                        </button>
                     </nav>
 
-                    <div className="p-8">
+                    {/* Content Area */}
+                    <main className="flex-1 p-6">
                         {activeTab === 'dashboard' ? (
-                            <div className="text-center">
-                                <h1 className="text-4xl font-bold text-blue-500 mb-4">Sigma Lens Studio</h1>
-                                <p className="text-slate-400">Salalah, Oman</p>
-                                <div className="mt-10 grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-slate-800 p-6 rounded-xl border border-slate-700">
-                                        <p className="text-sm text-slate-400 uppercase">Status</p>
-                                        <p className="text-2xl font-bold text-green-400">System Live</p>
+                            <div className="max-w-4xl mx-auto space-y-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                                        <h3 className="text-slate-400 text-sm uppercase mb-1">Business Name</h3>
+                                        <p className="text-xl font-semibold">Sigma Lens Studio</p>
                                     </div>
+                                    <div className="bg-slate-800 p-6 rounded-2xl border border-slate-700">
+                                        <h3 className="text-slate-400 text-sm uppercase mb-1">System Status</h3>
+                                        <p className="text-xl font-semibold text-green-400">Connected to Firebase</p>
+                                    </div>
+                                </div>
+                                <div className="bg-blue-600/10 border border-blue-600/20 p-6 rounded-2xl text-center">
+                                    <p className="text-blue-400">Welcome back! Manage your inventory and bills from the menu.</p>
                                 </div>
                             </div>
                         ) : (
-                            <div className="bg-white text-slate-900 p-6 rounded-lg shadow-xl">
-                                <h2 className="text-xl font-bold mb-4">Billing Section</h2>
-                                <p>Billing tools load aayi varunnu...</p>
+                            <div className="max-w-4xl mx-auto bg-white text-slate-900 rounded-2xl p-8 shadow-2xl">
+                                <h2 className="text-2xl font-bold border-b pb-4 mb-6">Create New Invoice</h2>
+                                <div className="space-y-4">
+                                    <p className="text-slate-500">Billing modules are initializing...</p>
+                                    <div className="h-32 bg-slate-100 rounded-xl border-2 border-dashed border-slate-200 flex items-center justify-center">
+                                        <span className="text-slate-400">Invoice Editor Ready</span>
+                                    </div>
+                                </div>
                             </div>
                         )}
-                    </div>
+                    </main>
                 </div>
             );
         }
