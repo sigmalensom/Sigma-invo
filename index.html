@@ -3,37 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sigma Invoicing System</title>
+    <title>Sigma Invo - Studio Manager</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide-react"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
 </head>
-<body>
+<body class="bg-slate-900">
     <div id="root"></div>
 
     <script type="text/babel">
-        // Paste your JavaScript code inside the App function below
-        const { useState, useEffect, useMemo } = React;
+        // Firebase Config - Ithu ningalude project-inte data aanu
+        const firebase_config = {
+            apiKey: "AIzaSyB...", // IVIDE NINGALUDE FIREBASE KEY UNDENNURAPPU VARUTHUKA
+            authDomain: "sigma-invo.firebaseapp.com",
+            projectId: "sigma-invo",
+            storageBucket: "sigma-invo.appspot.com",
+            messagingSenderId: "389274...",
+            appId: "1:389274..."
+        };
 
-        function App() {
-            // --- PASTE YOUR CODE FROM THE PREVIOUS SCREENSHOT BELOW ---
+        // Initialize
+        if (!firebase.apps.length) {
+            firebase.initializeApp(firebase_config);
+        }
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        const { useState, useEffect, useMemo } = React;
+        const Lucide = lucideReact;
+
+        const App = () => {
+            // NINGALUDE MOTHAM CODE LOGIC IVIDE THUDANGUNNU
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [inventory, setInventory] = useState([]);
+            const [invoices, setInvoices] = useState([]);
             
+            // UI State
+            const [searchTerm, setSearchTerm] = useState('');
+            const [cart, setCart] = useState([]);
+
+            // Business Info (As per your code)
+            const [settings, setSettings] = useState({
+                studioName: 'AL ZABINA TRADING ESTABLISHMENT',
+                senderName: 'SIGMA LENS STUDIO',
+                address: 'SAHALNOOTH AL JANUBIYYAH',
+                location: 'Salalah, Oman',
+                email: 'contact@alzabina.com',
+                vatNumber: '1426202',
+                currency: 'OMR',
+                phone: '+968 78385802'
+            });
+
+            useEffect(() => {
+                const unsubscribe = auth.onAuthStateChanged((user) => {
+                    if (user) {
+                        setUser(user);
+                        // Start syncing data
+                        const unsubInv = db.collection('inventory').onSnapshot(snap => {
+                            setInventory(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                        });
+                        const unsubInvc = db.collection('invoices').onSnapshot(snap => {
+                            setInvoices(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                        });
+                        setLoading(false);
+                    } else {
+                        auth.signInAnonymously();
+                    }
+                });
+                return () => unsubscribe();
+            }, []);
+
+            if (loading) return <div class="h-screen w-full flex items-center justify-center text-white">Loading Sigma Invo...</div>;
+
             return (
-                <div className="bg-slate-900 min-h-screen text-white flex items-center justify-center p-10">
-                   <div className="text-center">
-                        <h1 className="text-3xl font-bold mb-4">Sigma Invoicing System</h1>
-                        <p className="text-slate-400">Loading your dashboard... Please wait.</p>
-                   </div>
+                <div className="flex h-screen bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden">
+                    {/* Sidebar */}
+                    <aside className="w-64 bg-slate-900 text-white flex flex-col">
+                        <div className="p-6 border-b border-slate-800">
+                            <h1 className="text-lg font-bold tracking-tight uppercase">Sigma Studio</h1>
+                        </div>
+                        <nav className="flex-1 p-4 space-y-1.5 overflow-y-auto">
+                            <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}`}>
+                                <Lucide.LayoutDashboard size={20} /> Dashboard
+                            </button>
+                            <button onClick={() => setActiveTab('billing')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'billing' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}`}>
+                                <Lucide.ShoppingCart size={20} /> Create Bill
+                            </button>
+                            <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'inventory' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800 text-slate-400'}`}>
+                                <Lucide.Package size={20} /> Inventory
+                            </button>
+                        </nav>
+                    </aside>
+
+                    {/* Main Content */}
+                    <main className="flex-1 flex flex-col overflow-hidden relative">
+                        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
+                            <h2 className="text-xl font-semibold capitalize">{activeTab}</h2>
+                            <div className="text-sm font-medium text-slate-500">{settings.senderName}</div>
+                        </header>
+                        
+                        <div className="flex-1 overflow-y-auto p-8">
+                            {activeTab === 'dashboard' && (
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                                        <p className="text-slate-500 text-sm">Total Sales</p>
+                                        <h3 className="text-2xl font-bold mt-1">OMR {invoices.reduce((acc, inv) => acc + (inv.total || 0), 0).toFixed(3)}</h3>
+                                    </div>
+                                </div>
+                            )}
+                            {activeTab === 'inventory' && (
+                                <div className="bg-white rounded-2xl shadow-sm border border-slate-100 p-6">
+                                    <p>Inventory list load aayi varunnu...</p>
+                                </div>
+                            )}
+                        </div>
+                    </main>
                 </div>
             );
-        }
+        };
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
 </body>
-</html># Sigma-invo
+</html>
