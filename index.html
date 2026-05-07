@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sigma Invo - Advanced Studio Manager</title>
+    <title>Sigma Invo - Studio Manager</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -12,10 +12,10 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <style>
-        body { background-color: #020617; color: white; font-family: 'Inter', sans-serif; }
-        @media print { .no-print { display: none !important; } .print-area { display: block !important; } body { background: white; } }
-        .custom-scroll::-webkit-scrollbar { width: 5px; }
+        body { background-color: #020617; color: white; font-family: system-ui, sans-serif; overflow: hidden; }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
         .custom-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        @media print { .no-print { display: none !important; } .print-only { display: block !important; } body { background: white; } }
     </style>
 </head>
 <body>
@@ -38,163 +38,123 @@
         const auth = firebase.auth();
 
         function App() {
-            const [tab, setTab] = useState('dash');
+            const [tab, setTab] = useState('dashboard');
             const [inventory, setInventory] = useState([]);
+            const [invoices, setInvoices] = useState([]);
             const [cart, setCart] = useState([]);
-            const [name, setName] = useState('');
-            const [phone, setPhone] = useState('');
-            const [newItem, setNewItem] = useState({ name: '', price: '' });
-            const [search, setSearch] = useState('');
+            const [client, setClient] = useState({ name: '', phone: '' });
+            const [loading, setLoading] = useState(true);
 
             useEffect(() => {
                 auth.onAuthStateChanged(user => {
                     if (user) {
-                        db.collection('inventory').onSnapshot(s => {
-                            setInventory(s.docs.map(d => ({id: d.id, ...d.data()})));
-                        });
+                        db.collection('inventory').onSnapshot(s => setInventory(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                        db.collection('invoices').onSnapshot(s => setInvoices(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                        setLoading(false);
                     } else { auth.signInAnonymously(); }
                 });
             }, []);
 
-            const addItemToDB = () => {
-                if(newItem.name && newItem.price) {
-                    db.collection('inventory').add({ name: newItem.name, price: parseFloat(newItem.price) });
-                    setNewItem({ name: '', price: '' });
-                }
-            };
+            const total = cart.reduce((s, i) => s + (Number(i.price) || 0), 0);
 
-            const deleteItem = (id) => db.collection('inventory').doc(id).delete();
-            
-            const total = cart.reduce((s, i) => s + (i.price || 0), 0);
+            if (loading) return <div className="h-screen flex items-center justify-center text-blue-500 font-bold">SIGMA MANAGER INITIALIZING...</div>;
 
             return (
-                <div className="min-h-screen flex flex-col overflow-hidden">
-                    {/* Header */}
-                    <nav className="no-print bg-slate-900/50 backdrop-blur-md p-4 border-b border-slate-800 flex justify-between items-center sticky top-0 z-50">
-                        <div className="flex items-center gap-2">
-                            <div className="bg-blue-600 w-8 h-8 rounded-lg flex items-center justify-center font-bold shadow-lg shadow-blue-600/30">Σ</div>
-                            <span className="font-black tracking-tighter text-xl">SIGMA STUDIO</span>
+                <div className="flex h-screen">
+                    {/* Sidebar */}
+                    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col no-print">
+                        <div className="p-6 border-b border-slate-800">
+                            <h1 className="font-black text-xl tracking-tighter text-blue-500 italic">SIGMA STUDIO</h1>
                         </div>
-                        <div className="flex gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800">
-                            <button onClick={() => setTab('dash')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${tab==='dash'?'bg-blue-600 text-white':'text-slate-500 hover:text-white'}`}>Dashboard</button>
-                            <button onClick={() => setTab('bill')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${tab==='bill'?'bg-blue-600 text-white':'text-slate-500 hover:text-white'}`}>Billing</button>
-                            <button onClick={() => setTab('inv')} className={`px-4 py-2 rounded-lg text-sm font-bold transition ${tab==='inv'?'bg-blue-600 text-white':'text-slate-500 hover:text-white'}`}>Inventory</button>
-                        </div>
-                    </nav>
+                        <nav className="flex-1 p-4 space-y-2">
+                            <button onClick={() => setTab('dashboard')} className={`w-full text-left p-3 rounded-xl ${tab==='dashboard'?'bg-blue-600':'hover:bg-slate-800 text-slate-400'}`}>📊 Dashboard</button>
+                            <button onClick={() => setTab('billing')} className={`w-full text-left p-3 rounded-xl ${tab==='billing'?'bg-blue-600':'hover:bg-slate-800 text-slate-400'}`}>🛒 New Bill</button>
+                            <button onClick={() => setTab('inventory')} className={`w-full text-left p-3 rounded-xl ${tab==='inventory'?'bg-blue-600':'hover:bg-slate-800 text-slate-400'}`}>📦 Inventory</button>
+                            <button onClick={() => setTab('history')} className={`w-full text-left p-3 rounded-xl ${tab==='history'?'bg-blue-600':'hover:bg-slate-800 text-slate-400'}`}>📜 History</button>
+                        </nav>
+                    </aside>
 
-                    <main className="p-6 flex-1 no-print overflow-y-auto custom-scroll">
-                        {tab === 'dash' && (
-                            <div className="max-w-4xl mx-auto py-10">
-                                <h1 className="text-4xl font-black mb-2 text-white tracking-tighter">Welcome back, Sajin</h1>
-                                <p className="text-slate-500 mb-10">Your studio management system is running perfectly.</p>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    <div className="bg-slate-900 p-8 rounded-[2rem] border border-slate-800 shadow-2xl">
-                                        <p className="text-blue-500 text-xs font-black uppercase tracking-widest mb-2">Inventory Status</p>
-                                        <p className="text-3xl font-bold">{inventory.length} Items Listed</p>
+                    {/* Main */}
+                    <main className="flex-1 overflow-y-auto p-8 custom-scroll no-print">
+                        {tab === 'dashboard' && (
+                            <div className="max-w-4xl space-y-6">
+                                <h2 className="text-3xl font-black italic">Sigma Dashboard</h2>
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-xl">
+                                        <p className="text-xs text-slate-500 font-bold uppercase">Revenue</p>
+                                        <h3 className="text-3xl font-black mt-2 text-white">{invoices.reduce((a,b)=>a+(b.total||0),0).toFixed(3)} OMR</h3>
                                     </div>
-                                    <div className="bg-slate-900 p-8 rounded-[2rem] border border-slate-800 shadow-2xl">
-                                        <p className="text-green-500 text-xs font-black uppercase tracking-widest mb-2">Location</p>
-                                        <p className="text-3xl font-bold">Salalah, Oman</p>
+                                    <div className="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-xl">
+                                        <p className="text-xs text-slate-500 font-bold uppercase">Items</p>
+                                        <h3 className="text-3xl font-black mt-2 text-white">{inventory.length} Gear</h3>
                                     </div>
                                 </div>
                             </div>
                         )}
 
-                        {tab === 'inv' && (
-                            <div className="max-w-4xl mx-auto space-y-6">
-                                <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
-                                    <h2 className="font-bold mb-4 flex items-center gap-2 text-blue-400">Add New Equipment</h2>
-                                    <div className="flex gap-3">
-                                        <input placeholder="Item Name" value={newItem.name} className="flex-1 bg-slate-950 border border-slate-800 p-3 rounded-xl outline-none" onChange={e=>setNewItem({...newItem, name: e.target.value})} />
-                                        <input placeholder="Price (OMR)" type="number" value={newItem.price} className="w-32 bg-slate-950 border border-slate-800 p-3 rounded-xl outline-none" onChange={e=>setNewItem({...newItem, price: e.target.value})} />
-                                        <button onClick={addItemToDB} className="bg-blue-600 px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition">Add</button>
-                                    </div>
+                        {tab === 'inventory' && (
+                            <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+                                <div className="p-6 border-b border-slate-800 flex justify-between items-center">
+                                    <h3 className="font-bold">Equipment List</h3>
+                                    <button className="bg-blue-600 px-4 py-2 rounded-lg text-sm font-bold">+ Add Gear</button>
                                 </div>
-
-                                <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-slate-800/50 text-xs font-black text-slate-500 uppercase tracking-widest">
-                                            <tr><th className="p-6">Item Description</th><th className="p-6 text-right">Rate</th><th className="p-6"></th></tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-800">
-                                            {inventory.map(i => (
-                                                <tr key={i.id} className="hover:bg-slate-800/20 transition">
-                                                    <td className="p-6 font-bold">{i.name}</td>
-                                                    <td className="p-6 text-right font-bold text-blue-400">{i.price.toFixed(3)}</td>
-                                                    <td className="p-6 text-right"><button onClick={()=>deleteItem(i.id)} className="text-red-500 hover:text-red-400 font-bold">Delete</button></td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
+                                <table className="w-full text-left">
+                                    <thead className="bg-slate-800/50 text-xs text-slate-400">
+                                        <tr><th className="p-6">Description</th><th className="p-6 text-right">Price</th></tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-800">
+                                        {inventory.map(i => (
+                                            <tr key={i.id} className="hover:bg-slate-800/20">
+                                                <td className="p-6 font-bold">{i.name}</td>
+                                                <td className="p-6 text-right font-bold text-blue-400">{i.price}</td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
                         )}
 
-                        {tab === 'bill' && (
-                            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10">
+                        {tab === 'billing' && (
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
                                 <div className="space-y-6">
                                     <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-xl">
-                                        <h4 className="text-blue-500 font-bold text-xs uppercase mb-4 tracking-widest">Client Detail</h4>
-                                        <input placeholder="Customer Name" className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl mb-4 outline-none focus:border-blue-600 transition" onChange={e=>setName(e.target.value)} />
-                                        <input placeholder="Phone Number" className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl outline-none focus:border-blue-600 transition" onChange={e=>setPhone(e.target.value)} />
+                                        <p className="text-blue-500 font-bold text-xs mb-4 uppercase tracking-widest">Client</p>
+                                        <input placeholder="Customer Name" className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl mb-4" onChange={(e)=>setClient({...client, name: e.target.value})} />
+                                        <input placeholder="Phone Number" className="w-full bg-slate-950 border border-slate-800 p-4 rounded-2xl" onChange={(e)=>setClient({...client, phone: e.target.value})} />
                                     </div>
-                                    <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 h-[400px] overflow-y-auto custom-scroll">
-                                        <div className="flex justify-between items-center mb-6">
-                                            <h4 className="text-purple-500 font-bold text-xs uppercase tracking-widest">Select Equipment</h4>
-                                            <input placeholder="Search..." className="bg-slate-950 border border-slate-800 px-3 py-1 rounded-lg text-sm outline-none" onChange={e=>setSearch(e.target.value)} />
-                                        </div>
-                                        {inventory.filter(i=>i.name.toLowerCase().includes(search.toLowerCase())).map(item => (
-                                            <button key={item.id} onClick={()=>setCart([...cart, {...item, cid:Date.now()}])} className="w-full flex justify-between p-4 mb-2 bg-slate-950 rounded-2xl border border-slate-800 hover:border-blue-600 transition text-left">
-                                                <span className="font-bold text-sm">{item.name}</span>
-                                                <span className="text-blue-400 font-bold">{item.price.toFixed(3)}</span>
+                                    <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 h-96 overflow-y-auto custom-scroll">
+                                        <p className="text-purple-500 font-bold text-xs mb-4 uppercase tracking-widest">Gear Selection</p>
+                                        {inventory.map(item => (
+                                            <button key={item.id} onClick={()=>setCart([...cart, {...item, cid:Date.now()}])} className="w-full flex justify-between p-4 mb-2 bg-slate-950 rounded-2xl border border-slate-800 hover:border-blue-600">
+                                                <span>{item.name}</span><span className="font-bold text-blue-400">{item.price}</span>
                                             </button>
                                         ))}
                                     </div>
                                 </div>
 
-                                {/* Preview */}
-                                <div className="bg-white text-slate-900 p-10 rounded-[3rem] shadow-2xl h-fit border border-slate-100 sticky top-24">
+                                <div className="bg-white text-slate-900 p-10 rounded-[3rem] shadow-2xl h-fit border border-slate-100">
                                     <div className="flex justify-between border-b-2 border-slate-100 pb-8 mb-8">
-                                        <div><h1 className="text-2xl font-black italic tracking-tighter">SIGMA LENS STUDIO</h1><p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">Salalah, Oman</p></div>
-                                        <div className="text-right"><h2 className="text-3xl font-black text-slate-100 mb-1 leading-none">INVOICE</h2><p className="text-xs font-bold text-slate-500">{new Date().toLocaleDateString()}</p></div>
+                                        <h1 className="text-2xl font-black italic">SIGMA STUDIO</h1>
+                                        <div className="text-right font-bold text-slate-300">INVOICE</div>
                                     </div>
-                                    <div className="mb-8"><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">Customer:</p><p className="text-xl font-black uppercase">{name || 'CASH CUSTOMER'}</p><p className="text-sm font-bold text-slate-500">{phone}</p></div>
+                                    <div className="mb-8 font-bold">
+                                        <p className="text-[10px] text-slate-400 uppercase">Customer:</p>
+                                        <p className="text-xl uppercase">{client.name || 'Cash Customer'}</p>
+                                    </div>
                                     <table className="w-full mb-8">
-                                        <thead><tr className="border-b border-slate-100 text-[10px] text-slate-400 font-bold uppercase"><th className="py-4 text-left">Description</th><th className="py-4 text-right">Price</th></tr></thead>
-                                        <tbody>
-                                            {cart.map((c,i)=>(<tr key={i} className="border-b border-slate-50"><td className="py-4 font-bold text-slate-700">{c.name}</td><td className="py-4 text-right font-bold text-slate-900">{c.price.toFixed(3)}</td></tr>))}
-                                        </tbody>
+                                        <tr className="border-b text-[10px] text-slate-400 uppercase font-bold text-left"><th className="pb-2">Description</th><th className="pb-2 text-right">Price</th></tr>
+                                        {cart.map((c,i)=>(<tr key={i} className="border-b"><td className="py-4 font-bold text-slate-700">{c.name}</td><td className="py-4 text-right font-bold">{c.price}</td></tr>))}
                                     </table>
-                                    <div className="flex justify-between items-center border-t-2 border-slate-100 pt-8">
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em]">Grand Total OMR</span>
+                                    <div className="flex justify-between items-center pt-8 border-t-2 border-slate-100">
+                                        <span className="font-bold text-slate-400">TOTAL OMR</span>
                                         <span className="text-4xl font-black text-blue-600">{total.toFixed(3)}</span>
                                     </div>
-                                    <button onClick={()=>window.print()} className="w-full mt-10 bg-slate-900 text-white py-5 rounded-2xl font-bold uppercase hover:bg-blue-600 transition shadow-xl no-print">Generate PDF / Print</button>
-                                    <button onClick={()=>setCart([])} className="w-full text-[10px] text-slate-300 font-bold mt-4 uppercase no-print">Reset Invoice</button>
+                                    <button onClick={()=>window.print()} className="w-full mt-10 bg-slate-900 text-white py-5 rounded-2xl font-bold uppercase hover:bg-blue-600 transition shadow-xl">Print Official Bill</button>
+                                    <button onClick={()=>setCart([])} className="w-full text-xs text-slate-300 mt-4">Clear All Items</button>
                                 </div>
                             </div>
                         )}
                     </main>
-
-                    {/* Hidden Print Section */}
-                    <div className="hidden print:block p-10 text-black">
-                        <div className="flex justify-between border-b-4 border-black pb-5 mb-5">
-                            <h1 className="text-3xl font-black">SIGMA LENS STUDIO</h1>
-                            <div className="text-right font-bold uppercase">Invoice</div>
-                        </div>
-                        <div className="mb-10 flex justify-between">
-                            <div><p className="text-xs font-bold uppercase text-slate-400">Bill To:</p><p className="text-xl font-black uppercase">{name}</p><p>{phone}</p></div>
-                            <div className="text-right"><p className="font-bold">Date: {new Date().toLocaleDateString()}</p><p className="text-xs">Salalah, Dhofar, Oman</p></div>
-                        </div>
-                        <table className="w-full mb-10 border-collapse">
-                            <thead><tr className="border-b-2 border-black text-left"><th className="py-2">Item Description</th><th className="py-2 text-right">Price (OMR)</th></tr></thead>
-                            <tbody>
-                                {cart.map((c,idx)=>(<tr key={idx} className="border-b"><td className="py-4 font-bold">{c.name}</td><td className="py-4 text-right font-bold">{c.price.toFixed(3)}</td></tr>))}
-                            </tbody>
-                        </table>
-                        <h2 className="text-4xl font-black text-right mt-10">TOTAL OMR: {total.toFixed(3)}</h2>
-                        <div className="mt-20 border-t pt-5 text-center text-[10px] uppercase font-bold text-slate-400">Thank you for choosing Sigma Lens Studio</div>
-                    </div>
                 </div>
             );
         }
