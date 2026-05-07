@@ -1,284 +1,489 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sigma Lens Studio - Management System</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
-        @media print { .no-print { display: none !important; } .a4-container { width: 100% !important; padding: 0 !important; box-shadow: none !important; } }
-        .custom-scroll::-webkit-scrollbar { width: 4px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
-    </style>
-</head>
-<body>
-    <div id="root"></div>
+import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from 'firebaseapp';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken, 
+  onAuthStateChanged 
+} from 'firebaseauth';
+import { 
+  getFirestore, 
+  doc, 
+  setDoc, 
+  getDoc, 
+  collection, 
+  onSnapshot, 
+  addDoc, 
+  updateDoc, 
+  deleteDoc,
+  query
+} from 'firebasefirestore';
+import { 
+  Camera, Package, FileText, ShoppingCart, Plus, Trash2, CheckCircle2, 
+  AlertCircle, LayoutDashboard, Settings as SettingsIcon, TrendingUp, 
+  AlertTriangle, Printer, ArrowLeft, Calendar, Clock, ArrowRight, 
+  CreditCard, BarChart3, ChevronRight, Receipt, Activity, Briefcase,
+  Search, Download, Filter, User, MapPin, Phone, Mail, Hash, Globe,
+  HelpCircle, ChevronDown
+} from 'lucide-react';
 
-    <script type="text/babel">
-        // Lucide Icons Wrapper
-        const Icon = ({ name, size = 20, className = "" }) => {
-            const LucideIcon = lucide.icons[name.charAt(0).toUpperCase() + name.slice(1)] || lucide.icons.HelpCircle;
-            return <LucideIcon size={size} className={className} />;
-        };
+ --- Firebase Configuration & Initialization ---
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined'  __app_id  'studio-manager-default';
 
-        const { useState, useEffect, useMemo } = React;
+export default function App() {
+   --- Auth & User State ---
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyB3X7v-yLpE2-tSlate-400-size", 
-            authDomain: "sigma-invo.firebaseapp.com",
-            projectId: "sigma-invo",
-            storageBucket: "sigma-invo.appspot.com",
-            messagingSenderId: "389274383502",
-            appId: "1:389274383502:web:6e387c978385802"
-        };
+   --- App Data State ---
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [selectedInvoice, setSelectedInvoice] = useState(null); 
+  const [inventory, setInventory] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [settings, setSettings] = useState({
+    studioName 'AL ZABINA TRADING ESTABLISHMENT',
+    senderName 'SIGMA LENS STUDIO',
+    address 'SAHALNOOTH AL JANUBIYYAH',
+    location 'Salalah, Oman',
+    email 'contact@alzabina.com',
+    vatNumber '1426202',
+    currency 'OMR',
+    phone 'GSM +968 78385802',
+    logoUrl ''
+  });
 
-        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
-        const db = firebase.firestore();
-        const auth = firebase.auth();
-        const appId = 'sigma-studio-salalah';
+   --- UI State ---
+  const [searchTerm, setSearchTerm] = useState('');
+  const [notification, setNotification] = useState(null);
+  const [cart, setCart] = useState([]);
+  const [clientName, setClientName] = useState('');
+  const [clientPhone, setClientPhone] = useState('+968 ');
+  const [clientAddress, setClientAddress] = useState('');
+  const [selectedItem, setSelectedItem] = useState('');
+  const [quantity, setQuantity] = useState(1);
+  const [discount, setDiscount] = useState(0);
+  const [paymentStatus, setPaymentStatus] = useState('Paid');
+  const [paymentMethod, setPaymentMethod] = useState('Cash');
+  const [newItem, setNewItem] = useState({ name '', category 'Camera', stock 1, price 0 });
+  const [customItemName, setCustomItemName] = useState('');
+  const [customItemPrice, setCustomItemPrice] = useState(0);
 
-        function App() {
-            const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(true);
-            const [activeTab, setActiveTab] = useState('dashboard');
-            const [inventory, setInventory] = useState([]);
-            const [invoices, setInvoices] = useState([]);
-            const [cart, setCart] = useState([]);
-            const [clientName, setClientName] = useState('');
-            const [clientPhone, setClientPhone] = useState('+968 ');
-            const [selectedItem, setSelectedItem] = useState('');
-            const [quantity, setQuantity] = useState(1);
-            const [paymentStatus, setPaymentStatus] = useState('Paid');
-            const [selectedInvoice, setSelectedInvoice] = useState(null);
-            const [newItem, setNewItem] = useState({ name: '', category: 'Camera', stock: 1, price: 0 });
+   --- Auth Effect ---
+  useEffect(() = {
+    const initAuth = async () = {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (err) {
+        console.error(Auth Error, err);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, (u) = {
+      setUser(u);
+      setLoading(false);
+    });
+    return () = unsubscribe();
+  }, []);
 
-            // Auth State
-            useEffect(() => {
-                const unsubscribe = auth.onAuthStateChanged(u => {
-                    if (u) { setUser(u); setLoading(false); }
-                    else { auth.signInAnonymously(); }
-                });
-                return () => unsubscribe();
-            }, []);
+   --- Data Sync Effect ---
+  useEffect(() = {
+    if (!user) return;
+    const getCol = (name) = collection(db, 'artifacts', appId, 'users', user.uid, name);
+    const settingsRef = doc(db, 'artifacts', appId, 'users', user.uid, 'config', 'app_settings');
+    getDoc(settingsRef).then(docSnap = {
+      if (docSnap.exists()) setSettings(docSnap.data());
+    });
+    const unsubInventory = onSnapshot(getCol('inventory'), (snapshot) = {
+      const items = snapshot.docs.map(d = ({ id d.id, ...d.data() }));
+      setInventory(items);
+    }, (error) = console.error(Inventory error, error));
 
-            // Data Sync
-            useEffect(() => {
-                if (!user) return;
-                const unsubInv = db.collection('inventory').onSnapshot(s => {
-                    setInventory(s.docs.map(d => ({id: d.id, ...d.data()})));
-                });
-                const unsubInvc = db.collection('invoices').orderBy('createdAt', 'desc').onSnapshot(s => {
-                    setInvoices(s.docs.map(d => ({id: d.id, ...d.data()})));
-                });
-                return () => { unsubInv(); unsubInvc(); };
-            }, [user]);
+    const unsubInvoices = onSnapshot(getCol('invoices'), (snapshot) = {
+      const items = snapshot.docs.map(d = ({ id d.id, ...d.data() }));
+      setInvoices(items.sort((a, b) = new Date(b.createdAt) - new Date(a.createdAt)));
+    }, (error) = console.error(Invoice error, error));
 
-            const handleAddInventory = async (e) => {
-                e.preventDefault();
-                await db.collection('inventory').add({ ...newItem, price: parseFloat(newItem.price), stock: parseInt(newItem.stock), createdAt: new Date().toISOString() });
-                setNewItem({ name: '', category: 'Camera', stock: 1, price: 0 });
-            };
+    return () = { unsubInventory(); unsubInvoices(); };
+  }, [user]);
 
-            const handleAddToCart = () => {
-                const item = inventory.find(i => i.id === selectedItem);
-                if (!item) return;
-                setCart([...cart, { ...item, qty: quantity, cartId: Date.now() }]);
-                setSelectedItem(''); setQuantity(1);
-            };
+   --- Calculations for Analytics ---
+  const analytics = useMemo(() = {
+    const now = new Date();
+    const startOfDay = new Date(now.setHours(0,0,0,0));
+    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const startOfQuarter = new Date(now.getFullYear(), Math.floor(now.getMonth()  3)  3, 1);
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
 
-            const cartTotal = cart.reduce((sum, c) => sum + (c.price * c.qty), 0);
+    const filterInvoices = (start) = invoices.filter(inv = new Date(inv.createdAt) = start);
 
-            const handleGenerateInvoice = async () => {
-                const invData = {
-                    invoiceNumber: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
-                    clientName, clientPhone, items: cart, total: cartTotal,
-                    paymentStatus, createdAt: new Date().toISOString(), date: new Date().toLocaleDateString()
-                };
-                const docRef = await db.collection('invoices').add(invData);
-                setSelectedInvoice({ id: docRef.id, ...invData });
-                setCart([]); setClientName(''); setClientPhone('+968 ');
-                setActiveTab('invoices');
-            };
+    const getStats = (list) = {
+      const sales = list.reduce((s, i) = s + i.total, 0);
+      const receipts = list.filter(i = i.paymentStatus === 'Paid').reduce((s, i) = s + i.total, 0);
+      const dues = list.filter(i = i.paymentStatus !== 'Paid').reduce((s, i) = s + i.total, 0);
+      return { sales, receipts, dues };
+    };
 
-            if (loading) return <div className="h-screen flex items-center justify-center bg-slate-900 text-white uppercase tracking-widest text-xs">Initializing Sigma System...</div>;
+    return {
+      today getStats(filterInvoices(startOfDay)),
+      week getStats(filterInvoices(startOfWeek)),
+      month getStats(filterInvoices(startOfMonth)),
+      quarter getStats(filterInvoices(startOfQuarter)),
+      year getStats(filterInvoices(startOfYear))
+    };
+  }, [invoices]);
 
-            return (
-                <div className="flex h-screen overflow-hidden">
-                    {/* Sidebar */}
-                    <aside className="w-64 bg-slate-900 text-white p-6 flex flex-col no-print">
-                        <div className="flex items-center gap-3 mb-10 border-b border-slate-800 pb-6">
-                            <div className="bg-blue-600 p-2 rounded-lg font-bold">Σ</div>
-                            <h1 className="font-bold tracking-tighter text-lg">SIGMA LENS</h1>
-                        </div>
-                        <nav className="flex-1 space-y-2">
-                            <button onClick={() => {setActiveTab('dashboard'); setSelectedInvoice(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${activeTab==='dashboard'?'bg-blue-600':'hover:bg-slate-800'}`}>
-                                <Icon name="LayoutDashboard" /> Dashboard
-                            </button>
-                            <button onClick={() => {setActiveTab('billing'); setSelectedInvoice(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${activeTab==='billing'?'bg-blue-600':'hover:bg-slate-800'}`}>
-                                <Icon name="ShoppingCart" /> Create Bill
-                            </button>
-                            <button onClick={() => {setActiveTab('invoices'); setSelectedInvoice(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${activeTab==='invoices'?'bg-blue-600':'hover:bg-slate-800'}`}>
-                                <Icon name="FileText" /> Invoices
-                            </button>
-                            <button onClick={() => {setActiveTab('inventory'); setSelectedInvoice(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${activeTab==='inventory'?'bg-blue-600':'hover:bg-slate-800'}`}>
-                                <Icon name="Package" /> Inventory
-                            </button>
-                        </nav>
-                        <div className="mt-auto text-[10px] text-slate-500 text-center font-bold tracking-widest uppercase">Salalah, Oman</div>
-                    </aside>
+   --- Handlers ---
+  const showNotification = (msg, type = 'success') = {
+    setNotification({ msg, type });
+    setTimeout(() = setNotification(null), 3000);
+  };
 
-                    {/* Main */}
-                    <main className="flex-1 overflow-y-auto p-10 bg-slate-50">
-                        {activeTab === 'dashboard' && (
-                            <div className="max-w-5xl space-y-8">
-                                <h2 className="text-3xl font-black text-slate-900">Dashboard</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-                                        <p className="text-xs font-bold text-slate-400 uppercase mb-2">Total Gear</p>
-                                        <h3 className="text-4xl font-black">{inventory.length}</h3>
-                                    </div>
-                                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-                                        <p className="text-xs font-bold text-slate-400 uppercase mb-2">Total Invoices</p>
-                                        <h3 className="text-4xl font-black">{invoices.length}</h3>
-                                    </div>
-                                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
-                                        <p className="text-xs font-bold text-slate-400 uppercase mb-2">Total Revenue (OMR)</p>
-                                        <h3 className="text-4xl font-black text-blue-600">{invoices.reduce((s,i)=>s+i.total, 0).toFixed(3)}</h3>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
+  const handleAddInventory = async (e) = {
+    e.preventDefault();
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'inventory'), {
+        ...newItem,
+        price parseFloat(newItem.price),
+        stock parseInt(newItem.stock)
+      });
+      setNewItem({ name '', category 'Camera', stock 1, price 0 });
+      showNotification('Vastu inventory-il add cheythu');
+    } catch (err) {
+      showNotification('Error undayi', 'error');
+    }
+  };
 
-                        {activeTab === 'inventory' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
-                                    <table className="w-full text-left">
-                                        <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b">
-                                            <tr><th className="p-6">Item</th><th className="p-6">Stock</th><th className="p-6 text-right">Price</th></tr>
-                                        </thead>
-                                        <tbody className="divide-y">
-                                            {inventory.map(i => (
-                                                <tr key={i.id} className="hover:bg-slate-50 transition">
-                                                    <td className="p-6 font-bold">{i.name}</td>
-                                                    <td className="p-6">{i.stock}</td>
-                                                    <td className="p-6 text-right font-bold text-blue-600">{i.price.toFixed(3)}</td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm h-fit">
-                                    <h3 className="font-bold mb-6">Add New Asset</h3>
-                                    <form onSubmit={handleAddInventory} className="space-y-4">
-                                        <input className="w-full bg-slate-50 p-4 rounded-xl outline-none border border-slate-100" placeholder="Item Name" value={newItem.name} onChange={e=>setNewItem({...newItem, name: e.target.value})} required />
-                                        <input className="w-full bg-slate-50 p-4 rounded-xl outline-none border border-slate-100" type="number" placeholder="Stock" value={newItem.stock} onChange={e=>setNewItem({...newItem, stock: e.target.value})} required />
-                                        <input className="w-full bg-slate-50 p-4 rounded-xl outline-none border border-slate-100" type="number" step="0.001" placeholder="Price (OMR)" value={newItem.price} onChange={e=>setNewItem({...newItem, price: e.target.value})} required />
-                                        <button className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg">Add to Inventory</button>
-                                    </form>
-                                </div>
-                            </div>
-                        )}
+  const handleAddToCart = () = {
+    if (selectedItem === 'custom') {
+      if (!customItemName  customItemPrice  0) return showNotification('Vivarangal nalkuka!', 'error');
+      setCart([...cart, { itemId `custom-${Date.now()}`, name customItemName, price parseFloat(customItemPrice), category 'Custom', qty parseInt(quantity) }]);
+      setCustomItemName(''); setCustomItemPrice(0); setSelectedItem(''); setQuantity(1);
+      return;
+    }
+    if (!selectedItem) return;
+    const item = inventory.find(i = i.id === selectedItem);
+    if (!item) return;
+    if (item.category !== 'Service' && item.stock  quantity) return showNotification('Stock thikayilla!', 'error');
+    const existing = cart.find(c = c.itemId === item.id);
+    if (existing) {
+      setCart(cart.map(c = c.itemId === item.id  { ...c, qty c.qty + parseInt(quantity) }  c));
+    } else {
+      setCart([...cart, { itemId item.id, name item.name, price item.price, category item.category, qty parseInt(quantity) }]);
+    }
+    setSelectedItem(''); setQuantity(1);
+  };
 
-                        {activeTab === 'billing' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-                                <div className="lg:col-span-2 space-y-6">
-                                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-                                        <h3 className="font-bold mb-6 text-slate-400 uppercase text-[10px] tracking-widest">Client Details</h3>
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <input className="w-full bg-slate-50 p-4 rounded-xl outline-none border border-slate-100 font-bold" placeholder="Customer Name" value={clientName} onChange={e=>setClientName(e.target.value)} />
-                                            <input className="w-full bg-slate-50 p-4 rounded-xl outline-none border border-slate-100 font-bold" placeholder="WhatsApp Number" value={clientPhone} onChange={e=>setClientPhone(e.target.value)} />
-                                        </div>
-                                    </div>
-                                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
-                                        <h3 className="font-bold mb-6 text-slate-400 uppercase text-[10px] tracking-widest">Select Equipment</h3>
-                                        <div className="flex gap-4">
-                                            <select className="flex-1 bg-slate-50 p-4 rounded-xl outline-none border border-slate-100 font-bold" value={selectedItem} onChange={e=>setSelectedItem(e.target.value)}>
-                                                <option value="">-- Select Gear --</option>
-                                                {inventory.map(i => <option key={i.id} value={i.id}>{i.name} ({i.price.toFixed(3)})</option>)}
-                                            </select>
-                                            <input type="number" className="w-20 bg-slate-50 p-4 rounded-xl outline-none border border-slate-100 text-center font-bold" value={quantity} onChange={e=>setQuantity(parseInt(e.target.value))} />
-                                            <button onClick={handleAddToCart} className="bg-blue-600 text-white px-8 rounded-xl font-bold">Add</button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="bg-white p-8 rounded-[2rem] border-2 border-slate-900 shadow-2xl flex flex-col h-fit">
-                                    <h3 className="font-bold text-xl mb-6">Current Bill</h3>
-                                    <div className="flex-1 space-y-4 mb-6 max-h-60 overflow-y-auto">
-                                        {cart.map((c,idx) => (
-                                            <div key={idx} className="flex justify-between items-center border-b pb-2">
-                                                <div><p className="font-bold text-sm">{c.name}</p><p className="text-[10px] text-slate-400">{c.qty} unit</p></div>
-                                                <p className="font-bold">{(c.price*c.qty).toFixed(3)}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    <div className="border-t pt-6 mb-6">
-                                        <div className="flex justify-between items-center"><span className="font-bold text-slate-400 uppercase text-[10px]">Grand Total</span><span className="text-3xl font-black text-blue-600">{cartTotal.toFixed(3)}</span></div>
-                                    </div>
-                                    <button onClick={handleGenerateInvoice} disabled={cart.length===0} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl disabled:opacity-50">Generate & Save</button>
-                                </div>
-                            </div>
-                        )}
+  const cartSubtotal = useMemo(() = cart.reduce((sum, c) = sum + (c.price  c.qty), 0), [cart]);
+  const discountAmount = cartSubtotal  (discount  100);
+  const cartTotal = cartSubtotal - discountAmount;
 
-                        {activeTab === 'invoices' && !selectedInvoice && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {invoices.map(inv => (
-                                    <div key={inv.id} onClick={()=>setSelectedInvoice(inv)} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl transition cursor-pointer group">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div><h4 className="font-black group-hover:text-blue-600 transition">{inv.clientName}</h4><p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">{inv.invoiceNumber}</p></div>
-                                            <span className="bg-emerald-100 text-emerald-700 text-[10px] px-3 py-1 rounded-full font-bold">PAID</span>
-                                        </div>
-                                        <div className="flex justify-between items-end border-t pt-4">
-                                            <p className="text-xs font-bold text-slate-400">{inv.date}</p>
-                                            <p className="text-xl font-black">{inv.total.toFixed(3)}</p>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
+  const handleGenerateInvoice = async () = {
+    if (!user  !clientName  cart.length === 0) return showNotification('Full aayi fill cheyyuka!', 'error');
+    try {
+      const now = new Date();
+      const formattedDateTime = now.toLocaleDateString() + ' ' + now.toLocaleTimeString([], { hour '2-digit', minute '2-digit' });
+      const invId = `INV-${Math.floor(100000 + Math.random()  900000)}`;
+      
+      const newInvoice = {
+        invoiceNumber invId,
+        date formattedDateTime, 
+        createdAt now.toISOString(),
+        clientName, clientPhone, clientAddress, items cart, subtotal cartSubtotal,
+        discountRate discount, discountAmount, total cartTotal, paymentStatus, paymentMethod
+      };
+      
+      const invRef = await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'invoices'), newInvoice);
+      
+      for (const cartItem of cart) {
+        if (cartItem.category !== 'Service' && cartItem.category !== 'Custom') {
+          const invItem = inventory.find(i = i.id === cartItem.itemId);
+          if (invItem) await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'inventory', invItem.id), { stock invItem.stock - cartItem.qty });
+        }
+      }
+      
+      setCart([]); setClientName(''); setClientPhone('+968 '); setClientAddress(''); setDiscount(0);
+      setActiveTab('invoices'); setSelectedInvoice({ id invRef.id, ...newInvoice });
+      showNotification('Invoice ready aayi!');
+    } catch (err) { showNotification('Error!', 'error'); }
+  };
 
-                        {selectedInvoice && (
-                            <div className="max-w-3xl mx-auto">
-                                <div className="flex justify-between mb-8 no-print">
-                                    <button onClick={()=>setSelectedInvoice(null)} className="flex items-center gap-2 font-bold text-slate-400"><Icon name="ArrowLeft" /> Back</button>
-                                    <button onClick={()=>window.print()} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20"><Icon name="Printer" /> Print Bill</button>
-                                </div>
-                                <div className="bg-white p-16 shadow-2xl border border-slate-100 a4-container text-slate-900 min-h-[800px]">
-                                    <div className="flex justify-between border-b-2 border-slate-50 pb-10 mb-10">
-                                        <div><h1 className="text-3xl font-black italic tracking-tighter">SIGMA STUDIO</h1><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Salalah, Sultanate of Oman</p></div>
-                                        <div className="text-right"><h2 className="text-4xl font-black text-slate-100">INVOICE</h2><p className="font-bold text-slate-500">{selectedInvoice.invoiceNumber}</p></div>
-                                    </div>
-                                    <div className="mb-10"><p className="text-[10px] font-bold text-slate-300 uppercase mb-1">Customer</p><p className="text-2xl font-black uppercase">{selectedInvoice.clientName}</p><p className="font-bold text-slate-400">{selectedInvoice.clientPhone}</p></div>
-                                    <table className="w-full mb-10 text-left">
-                                        <thead className="border-b-2 text-[10px] uppercase text-slate-300 font-bold"><tr><th className="pb-4">Item Description</th><th className="pb-4 text-right">Total OMR</th></tr></thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {selectedInvoice.items.map((item, idx) => (
-                                                <tr key={idx}><td className="py-5 font-bold text-slate-600">{item.name} ({item.qty} Unit)</td><td className="py-5 text-right font-black">{(item.price * item.qty).toFixed(3)}</td></tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                    <div className="flex justify-between items-center border-t-2 pt-10 mt-auto">
-                                        <p className="text-[10px] font-bold text-slate-300 uppercase">Grand Total</p>
-                                        <p className="text-5xl font-black text-blue-600">{selectedInvoice.total.toFixed(3)}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </main>
-                </div>
-            );
-        }
+  const handleSaveSettings = async (e) = {
+    e.preventDefault();
+    if (!user) return;
+    try {
+      await setDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'config', 'app_settings'), settings);
+      showNotification('Settings save aayi!');
+    } catch (err) { showNotification('Error!', 'error'); }
+  };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+  const filteredInventory = useMemo(() = 
+    inventory.filter(i = (i.name  '').toLowerCase().includes(searchTerm.toLowerCase())),
+  [inventory, searchTerm]);
+
+  const filteredInvoices = useMemo(() = 
+    invoices.filter(inv = 
+      (inv.clientName  '').toLowerCase().includes(searchTerm.toLowerCase())  
+      (inv.invoiceNumber  '').toLowerCase().includes(searchTerm.toLowerCase())
+    ),
+  [invoices, searchTerm]);
+
+  if (loading) return (
+    div className=h-screen w-full flex items-center justify-center bg-slate-900 text-white font-sans
+      div className=flex flex-col items-center gap-4
+        Camera className=animate-pulse text-blue-500 size={48} 
+        p className=text-sm font-semibold tracking-widest uppercase opacity-50Syncing...p
+      div
+    div
+  );
+
+  return (
+    div className=flex h-screen bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden
+      
+      { Sidebar Navigation }
+      aside className=w-64 bg-slate-900 text-white flex flex-col hidden mdflex printhidden shadow-2xl z-20
+        div className=p-8 flex items-center gap-4 border-b border-slate-800
+          div className=bg-blue-600 p-2 rounded-lg shadow-lg flex items-center justify-center min-w-[40px] min-h-[40px]
+            {settings.logoUrl  img src={settings.logoUrl} className=w-full h-full object-cover rounded   Camera className=text-white size={24} }
+          div
+          h1 className=text-lg font-semibold tracking-tight truncate uppercaseSigma Studioh1
+        div
+        
+        nav className=flex-1 p-4 space-y-1.5 overflow-y-auto
+          NavItem active={activeTab === 'dashboard'} onClick={() = {setActiveTab('dashboard'); setSelectedInvoice(null);}} icon={LayoutDashboard size={20}} label=Dashboard 
+          NavItem active={activeTab === 'billing'} onClick={() = {setActiveTab('billing'); setSelectedInvoice(null);}} icon={ShoppingCart size={20}} label=Create Bill 
+          NavItem active={activeTab === 'invoices'} onClick={() = {setActiveTab('invoices'); setSelectedInvoice(null);}} icon={FileText size={20}} label=Invoices 
+          NavItem active={activeTab === 'inventory'} onClick={() = {setActiveTab('inventory'); setSelectedInvoice(null);}} icon={Package size={20}} label=Inventory 
+        nav
+
+        div className=p-6 border-t border-slate-800
+          button onClick={() = {setActiveTab('settings'); setSelectedInvoice(null);}} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === 'settings'  'bg-slate-800 text-white border border-slate-700'  'hoverbg-slate-80050 text-slate-400 hovertext-white'}`}
+            SettingsIcon size={20}  span className=text-sm font-semiboldSettingsspan
+          button
+        div
+      aside
+
+      { Main Content Area }
+      main className=flex-1 flex flex-col overflow-hidden relative w-full printbg-white printoverflow-visible
+        
+        style dangerouslySetInnerHTML={{ __html `
+          @media print {
+            @page { size A4; margin 10mm; }
+            body { -webkit-print-color-adjust exact; }
+            .a4-container { width 100% !important; max-width none !important; padding 0 !important; margin 0 !important; box-shadow none !important; border none !important; }
+            .no-print { display none !important; }
+          }
+        `}} 
+
+        header className=h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 printhidden
+          div className=relative w-96
+            Search className=absolute left-3 top-12 -translate-y-12 text-slate-400 size={18} 
+            input type=text placeholder=Search... className=w-full pl-10 pr-4 py-2 rounded-full bg-slate-100 border-none text-sm outline-none font-medium value={searchTerm} onChange={(e) = setSearchTerm(e.target.value)} 
+          div
+          div className=flex items-center gap-4
+             div className=w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 overflow-hidden
+               {settings.logoUrl  img src={settings.logoUrl} className=w-full h-full object-cover   User size={20} className=text-slate-400 }
+            div
+          div
+        header
+
+        div className=flex-1 overflow-auto p-8 printp-0 printoverflow-visible
+          
+          {activeTab === 'dashboard' && !selectedInvoice && (
+            div className=max-w-7xl mx-auto space-y-8 animate-in fade-in duration-500
+              div className=flex justify-between items-center
+                h2 className=text-3xl font-bold text-slate-900Dashboardh2
+                div className=flex gap-2
+                  button className=bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold shadow-lg shadow-blue-50020 onClick={() = setActiveTab('billing')}+ New Invoicebutton
+                div
+              div
+
+              { Table Analysis Section from Screenshot }
+              div className=grid grid-cols-1 lggrid-cols-2 gap-8
+                { Top Expenses Card Placeholder }
+                div className=bg-white rounded-3xl shadow-sm border border-slate-200 flex flex-col min-h-[400px]
+                  div className=p-6 flex justify-between items-center border-b border-slate-50
+                    h3 className=font-bold text-slate-800 text-lgTop Expensesh3
+                    button className=text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1
+                      This Fiscal Year ChevronDown size={14} 
+                    button
+                  div
+                  div className=flex-1 flex items-center justify-center p-12
+                    div className=text-center opacity-40
+                      div className=mb-4 flex justify-centerActivity size={48} className=text-slate-200 div
+                      p className=text-sm font-medium text-slate-400 italicNo Expense recorded for this fiscal yearp
+                    div
+                  div
+                div
+
+                { Sales, Receipts, and Dues Table }
+                div className=bg-white rounded-3xl shadow-sm border border-slate-200 flex flex-col
+                  div className=p-6 flex items-center gap-2 border-b border-slate-50
+                    h3 className=font-bold text-slate-800 text-lgSales, Receipts, and Duesh3
+                    HelpCircle size={16} className=text-slate-300 cursor-help 
+                  div
+                  div className=p-2
+                    table className=w-full text-left
+                      thead
+                        tr className=text-[10px] font-bold text-slate-400 uppercase tracking-widest
+                          th className=px-6 py-4th
+                          th className=px-6 py-4 text-rightSalesth
+                          th className=px-6 py-4 text-rightReceiptsth
+                          th className=px-6 py-4 text-rightDueth
+                        tr
+                      thead
+                      tbody className=divide-y divide-slate-50
+                        TableRow label=Today data={analytics.today} currency={settings.currency} 
+                        TableRow label=This Week data={analytics.week} currency={settings.currency} 
+                        TableRow label=This Month data={analytics.month} currency={settings.currency} 
+                        TableRow label=This Quarter data={analytics.quarter} currency={settings.currency} 
+                        TableRow label=This Year data={analytics.year} currency={settings.currency} 
+                      tbody
+                    table
+                  div
+                  div className=mt-auto p-6 border-t border-slate-50
+                    button onClick={() = setActiveTab('invoices')} className=text-blue-600 font-bold text-xs uppercase tracking-widest flex items-center gap-2 hovergap-3 transition-allView Detailed History ArrowRight size={14} button
+                  div
+                div
+              div
+
+              { General Stats }
+              div className=grid grid-cols-1 mdgrid-cols-4 gap-6
+                StatCard label=Live Revenue value={invoices.reduce((s, i) = s + i.total, 0)} currency={settings.currency} icon={TrendingUp size={24}} color=blue 
+                StatCard label=Current Month value={analytics.month.sales} currency={settings.currency} icon={BarChart3 size={24}} color=indigo 
+                StatCard label=Total Invoices value={invoices.length} unit=Bills icon={FileText size={24}} color=slate 
+                StatCard label=Low Stock value={inventory.filter(i = i.stock = 2 && i.category !== 'Service').length} unit=Items icon={AlertTriangle size={24}} color=amber 
+              div
+            div
+          )}
+
+          {activeTab === 'inventory' && (
+            div className=max-w-6xl mx-auto space-y-8 animate-in slide-in-from-bottom-4 duration-500
+               h2 className=text-3xl font-bold text-slate-900Inventory Managementh2
+               div className=grid grid-cols-1 lggrid-cols-4 gap-8
+                 div className=lgcol-span-3 bg-white rounded-3xl shadow-sm border border-slate-200 overflow-hidden
+                    table className=w-full text-left
+                       thead className=bg-slate-50 border-b border-slate-100 text-[10px] font-semibold text-slate-400 uppercase tracking-widest
+                          trth className=px-8 py-4Itemthth className=px-8 py-4Categorythth className=px-8 py-4Stockthth className=px-8 py-4 text-rightPricethth className=px-8 py-4 text-centerActionsthtr
+                       thead
+                       tbody className=divide-y divide-slate-50
+                          {filteredInventory.map(item = (
+                            tr key={item.id} className=hoverbg-slate-50 transition-colors
+                               td className=px-8 py-5 font-semibold text-slate-900{item.name}td
+                               td className=px-8 py-5span className=px-3 py-1 bg-slate-100 text-slate-600 rounded-full text-[10px] font-semibold uppercase{item.category}spantd
+                               td className=px-8 py-5{item.category === 'Service'  '∞'  item.stock}td
+                               td className=px-8 py-5 text-right font-semibold{item.price.toFixed(3)}td
+                               td className=px-8 py-5 text-centerbutton onClick={() = { if(window.confirm('Vastu delete cheyyano')) deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'inventory', item.id)) }} className=text-slate-300 hovertext-rose-500 transition-colorsTrash2 size={18} buttontd
+                            tr
+                          ))}
+                       tbody
+                    table
+                 div
+                 div className=bg-white p-8 rounded-3xl border border-slate-200 shadow-sm h-fit
+                    h3 className=font-semibold text-slate-900 mb-6 flex items-center gap-2 text-lgPlus size={18} className=text-blue-500 Add Stockh3
+                    form onSubmit={handleAddInventory} className=space-y-4
+                       input type=text className=w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm outline-none value={newItem.name} onChange={e = setNewItem({...newItem, name e.target.value})} placeholder=Item Name required 
+                       select className=w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm outline-none value={newItem.category} onChange={e = setNewItem({...newItem, category e.target.value})}optionCameraoptionoptionLensoptionoptionLightingoptionoptionServiceoptionselect
+                       input type=number className=w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm outline-none value={newItem.stock} onChange={e = setNewItem({...newItem, stock e.target.value})} placeholder=Stock Count 
+                       input type=number step=0.001 className=w-full bg-slate-50 border-none rounded-xl px-4 py-3 text-sm outline-none value={newItem.price} onChange={e = setNewItem({...newItem, price e.target.value})} placeholder=Unit Price required 
+                       button type=submit className=w-full bg-blue-600 text-white py-4 rounded-xl font-semibold shadow-lg shadow-blue-50020 transition-all activescale-[0.98]Add to Assetsbutton
+                    form
+                 div
+              div
+            div
+          )}
+
+          {activeTab === 'billing' && (
+            div className=max-w-6xl mx-auto space-y-8 animate-in zoom-in-95 duration-300
+               h2 className=text-3xl font-bold text-slate-900Billing Counterh2
+               div className=grid grid-cols-1 lggrid-cols-3 gap-8
+                  div className=lgcol-span-2 space-y-6
+                     div className=bg-white p-8 rounded-3xl border border-slate-200 shadow-sm
+                        h3 className=font-semibold text-slate-900 mb-6 flex items-center gap-2 text-lgUser size={20} className=text-blue-500 Customer Detailsh3
+                        div className=grid grid-cols-1 mdgrid-cols-2 gap-4
+                           input type=text placeholder=Client Name className=w-full bg-slate-50 border-none rounded-2xl px-6 py-4 text-sm font-medium mdcol-span-2 outline-none focusring-2 focusring-blue-50010 value={clientName} onChange={e = setClientName(e.target.value)} required 
+                           input type=text placeholder=Contact Phone className=w-full bg-slate-50 border-none rounded-2xl px-6 py-4 text-sm outline-none font-medium value={clientPhone} onChange={e = setClientPhone(e.target.value)} 
+                           input type=text placeholder=Address className=w-full bg-slate-50 border-none rounded-2xl px-6 py-4 text-sm font-medium outline-none value={clientAddress} onChange={e = setClientAddress(e.target.value)} 
+                        div
+                     div
+                     div className=bg-white p-8 rounded-3xl border border-slate-200 shadow-sm
+                        h3 className=font-semibold text-slate-900 mb-6 flex items-center gap-2 text-lg Package size={20} className=text-blue-500 Add Items to Billh3
+                        div className=flex flex-col gap-4
+                           div className=flex flex-col mdflex-row gap-4 items-end
+                              select className=flex-1 bg-slate-50 border-none rounded-2xl px-6 py-4 text-sm font-medium outline-none value={selectedItem} onChange={e = setSelectedItem(e.target.value)}option value=-- Select an Item --optionoption value=custom className=font-semibold text-blue-600+ Add Custom Serviceoption{inventory.map(item = option key={item.id} value={item.id} disabled={item.category !== 'Service' && item.stock = 0}{item.name} ({item.price.toFixed(3)} {settings.currency})option)}select
+                              div className=w-24
+                                 label className=text-[10px] font-semibold text-slate-400 uppercase tracking-widest block mb-1.5Qtylabel
+                                 input type=number min=1 className=w-full bg-slate-50 border-none rounded-2xl px-6 py-4 text-sm text-center font-bold outline-none value={quantity} onChange={e = setQuantity(parseInt(e.target.value  1))} 
+                              div
+                              button onClick={handleAddToCart} className=bg-slate-900 text-white h-[60px] px-8 rounded-2xl font-semibold uppercase tracking-widest hoverbg-blue-600 activescale-95 shadow-lgAdd to Cartbutton
+                           div
+                           {selectedItem === 'custom' && (
+                             div className=p-6 bg-blue-50 rounded-2xl border border-blue-100 flex flex-col mdflex-row gap-4 animate-in slide-in-from-top-2
+                                input type=text placeholder=Service Description className=flex-1 bg-white border-none rounded-xl px-4 py-3 text-sm font-medium outline-none value={customItemName} onChange={(e) = setCustomItemName(e.target.value)} 
+                                input type=number placeholder=Price className=w-40 bg-white border-none rounded-xl px-4 py-3 text-sm font-bold outline-none value={customItemPrice} onChange={(e) = setCustomItemPrice(parseFloat(e.target.value  0))} 
+                             div
+                           )}
+                        div
+                     div
+                  div
+                  div className=bg-white rounded-3xl border-2 border-slate-900 shadow-2xl flex flex-col h-fit overflow-hidden
+                     div className=bg-slate-900 p-6 text-white flex justify-betweenh3 className=font-semibold tracking-tighter text-lg uppercaseInvoice Summaryh3ShoppingCart size={20} div
+                     div className=p-6 flex-1 max-h-[400px] overflow-y-auto space-y-4
+                        {cart.length === 0  p className=text-center py-12 opacity-30 italic font-mediumAdd items to start billingp  cart.map((c, idx) = (
+                          div key={idx} className=flex justify-between items-start gap-4 pb-4 border-b border-slate-100 lastborder-0
+                             div className=flex-1p className=font-semibold text-slate-900 text-sm leading-tight{c.name}pp className=text-[10px] font-semibold text-slate-400 uppercase mt-0.5{c.qty} × {c.price.toFixed(3)}pdiv
+                             div className=text-right flex items-center gap-3p className=font-bold text-slate-900 text-sm{(c.qty  c.price).toFixed(3)}pbutton onClick={() = setCart(cart.filter((_, i) = i !== idx))} className=text-rose-300Trash2 size={14}buttondiv
+                          div
+                        ))}
+                     div
+                     div className=p-6 bg-slate-50 border-t border-slate-200 space-y-3
+                        div className=flex justify-between items-center border-t border-slate-200 pt-3span className=font-bold text-slate-900 uppercase text-xs tracking-widestGrand Totalspanspan className=font-bold text-2xl text-blue-600 tabular-nums{cartTotal.toFixed(3)}spandiv
+                        div className=grid grid-cols-2 gap-2 mt-4
+                           select className=bg-white border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-semibold uppercase outline-none value={paymentStatus} onChange={e = setPaymentStatus(e.target.value)}option value=PaidMark Paidoptionoption value=DraftSave Draftoptionselect
+                           select className=bg-white border border-slate-200 rounded-xl px-3 py-2 text-[10px] font-semibold uppercase outline-none value={paymentMethod} onChange={e = setPaymentMethod(e.target.value)} disabled={paymentStatus === 'Draft'}option value=CashCashoptionoption value=CardCardoptionoption value=TransferTransferoptionselect
+                        div
+                        button onClick={handleGenerateInvoice} disabled={cart.length === 0} className=w-full mt-4 bg-slate-900 text-white py-4 rounded-2xl font-semibold text-sm uppercase tracking-widest activescale-95 shadow-xlConfirm & Generatebutton
+                     div
+                  div
+               div
+            div
+          )}
+
+          {activeTab === 'invoices' && !selectedInvoice && (
+            div className=max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500
+               h2 className=text-3xl font-bold text-slate-900Invoice Registryh2
+               div className=grid grid-cols-1 mdgrid-cols-2 lggrid-cols-3 gap-6
+                  {filteredInvoices.map(inv = (
+                    div key={inv.id} onClick={() = setSelectedInvoice(inv)} className=bg-white rounded-3xl border border-slate-200 shadow-sm p-6 hovershadow-xl transition-all cursor-pointer group flex flex-col h-[200px]
+                       div className=flex justify-between items-start mb-auto
+                          divp className=font-semibold text-slate-900 text-lg group-hovertext-blue-600 transition-colors leading-tight{inv.clientName}pp className=text-[10px] text-slate-400 font-semibold uppercase mt-1.5 tracking-tighter#{inv.invoiceNumber}pdiv
+                          span className={`px-3 py-1 rounded-full text-[10px] font-semibold uppercase ${inv.paymentStatus === 'Draft'  'bg-amber-100 text-amber-700'  'bg-emerald-100 text-emerald-700'}`}{inv.paymentStatus  'Paid'}span
+                       div
+                       div className=flex justify-between items-end border-t border-slate-50 pt-4
+                          divp className=text-[10px] font-semibold text-slate-400 uppercase tracking-widestDatepp className=text-sm font-semibold text-slate-700{inv.date}pdiv
+                          div className=text-rightp className=text-xl font-bold text-slate-900{inv.total.toFixed(3)} span className=text-xs font-medium{settings.currency}spanpdiv
+                       div
+                    div
+                  ))}
+               div
+            div
+          )}
+
+          {activeTab === 'invoices' && selectedInvoice && (
+            div className=max-w-4xl mx-auto animate-in zoom-in-95 duration-500
+               div className=mb-8 flex justify-between items-center printhidden
+                  button onClick={() = setSelectedInvoice(null)} className=flex items-center gap-2 font-semibold text-slate-500 hovertext-slate-900 text-sm ArrowLeft size={16} Back to Registry button
+                  button onClick={() = window.print()} className=bg-blue-600 hoverbg-blue-700 text-white px-8 py-2 rounded-xl font-semibold shadow-xl flex items-center gap-2 text-sm Printer size={16} Print A4 button
+               div
+               div className=bg-white p-12 mdp-16 shadow-2xl min-h-[1050px] a4-container mx-auto text-slate-900 border border-slate-100
+                  
+                  div className=flex justify-be
