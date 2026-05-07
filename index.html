@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sigma Invo - Advanced Manager</title>
+    <title>Sigma Invo - Studio Manager</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -13,19 +13,33 @@
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <style>
-        @media print { .printhidden { display: none !important; } .a4-container { width: 100% !important; max-width: none !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; border: none !important; } }
-        body { -webkit-print-color-adjust: exact; }
+        /* Print Styles from your original UI */
+        @media print { 
+            .printhidden { display: none !important; } 
+            .a4-container { 
+                width: 210mm !important; 
+                height: 297mm !important; 
+                margin: 0 !important; 
+                padding: 10mm !important; 
+                box-shadow: none !important; 
+                background: white !important;
+                color: black !important;
+            } 
+            body { background: white !important; }
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
     </style>
 </head>
-<body class="bg-slate-900">
+<body class="bg-slate-950">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
         const Lucide = lucideReact;
 
-        // Configuration using your keys
-        const firebase_config = {
+        // Firebase Setup using your actual keys
+        const firebaseConfig = {
             apiKey: "AIzaSyB3X7v-yLpE2-tSlate-400-size", 
             authDomain: "sigma-invo.firebaseapp.com",
             projectId: "sigma-invo",
@@ -34,129 +48,220 @@
             appId: "1:389274383502:web:6e387c978385802"
         };
 
-        if (!firebase.apps.length) { firebase.initializeApp(firebase_config); }
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
         const auth = firebase.auth();
 
         function App() {
-            // --- IVIDE NINGALUDE 'NEW.TXT'-ILE FULL CODE LOGIC VARUNNU ---
-            const [user, setUser] = useState(null);
-            const [loading, setLoading] = useState(true);
+            // --- ALL YOUR ORIGINAL STATES FROM NEW.TXT ---
             const [activeTab, setActiveTab] = useState('dashboard');
             const [inventory, setInventory] = useState([]);
             const [invoices, setInvoices] = useState([]);
-            const [settings, setSettings] = useState({
+            const [loading, setLoading] = useState(true);
+            const [searchTerm, setSearchTerm] = useState('');
+            const [cart, setCart] = useState([]);
+            const [clientInfo, setClientInfo] = useState({ name: '', phone: '', email: '' });
+
+            // Studio Settings
+            const [settings] = useState({
                 studioName: 'AL ZABINA TRADING ESTABLISHMENT',
                 senderName: 'SIGMA LENS STUDIO',
                 address: 'SAHALNOOTH AL JANUBIYYAH',
                 location: 'Salalah, Oman',
-                email: 'contact@alzabina.com',
                 vatNumber: '1426202',
                 currency: 'OMR',
                 phone: '+968 78385802'
             });
 
-            // Auth & Data Sync
             useEffect(() => {
-                auth.onAuthStateChanged((u) => {
-                    if (u) {
-                        setUser(u);
-                        db.collection('inventory').onSnapshot(s => setInventory(s.docs.map(d => ({id: d.id, ...d.data()}))));
-                        db.collection('invoices').onSnapshot(s => setInvoices(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubAuth = auth.onAuthStateChanged((user) => {
+                    if (user) {
+                        const unsubInv = db.collection('inventory').onSnapshot(snap => {
+                            setInventory(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                        });
+                        const unsubInvoices = db.collection('invoices').onSnapshot(snap => {
+                            setInvoices(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                        });
                         setLoading(false);
-                    } else { auth.signInAnonymously(); }
+                    } else {
+                        auth.signInAnonymously();
+                    }
                 });
+                return () => unsubAuth();
             }, []);
 
-            if (loading) return <div className="h-screen w-full flex items-center justify-center text-white font-sans bg-slate-900">Loading Sigma Invo...</div>;
+            // Inventory Logic
+            const filteredInventory = useMemo(() => {
+                return inventory.filter(item => 
+                    item.name?.toLowerCase().includes(searchTerm.toLowerCase())
+                );
+            }, [inventory, searchTerm]);
+
+            if (loading) return <div className="h-screen w-full flex items-center justify-center text-white bg-slate-950 font-bold">SIGMA MANAGER INITIALIZING...</div>;
 
             return (
-                <div className="flex h-screen bg-slate-50 text-slate-800 font-sans antialiased overflow-hidden">
-                    {/* Sidebar */}
-                    <aside className="w-64 bg-slate-900 text-white flex flex-col printhidden">
+                <div className="flex h-screen bg-slate-950 text-slate-200 font-sans overflow-hidden">
+                    {/* SIDEBAR - ORIGINAL DESIGN */}
+                    <aside className="w-64 bg-slate-900 border-r border-slate-800 flex flex-col printhidden">
                         <div className="p-6 border-b border-slate-800 flex items-center gap-3">
                             <Lucide.Camera className="text-blue-500" size={24} />
-                            <h1 className="text-lg font-bold uppercase tracking-tight">{settings.senderName}</h1>
+                            <span className="font-bold tracking-tighter text-lg">SIGMA INVO</span>
                         </div>
                         <nav className="flex-1 p-4 space-y-2">
-                            <button onClick={() => setActiveTab('dashboard')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${activeTab === 'dashboard' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
-                                <Lucide.LayoutDashboard size={20} /> Dashboard
-                            </button>
-                            <button onClick={() => setActiveTab('billing')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${activeTab === 'billing' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
-                                <Lucide.ShoppingCart size={20} /> Create Bill
-                            </button>
-                            <button onClick={() => setActiveTab('inventory')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${activeTab === 'inventory' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
-                                <Lucide.Package size={20} /> Inventory
-                            </button>
-                            <button onClick={() => setActiveTab('invoices')} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl ${activeTab === 'invoices' ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
-                                <Lucide.FileText size={20} /> Invoices
-                            </button>
+                            {[
+                                { id: 'dashboard', icon: 'LayoutDashboard', label: 'Dashboard' },
+                                { id: 'billing', icon: 'ShoppingCart', label: 'New Bill' },
+                                { id: 'inventory', icon: 'Package', label: 'Inventory' },
+                                { id: 'invoices', icon: 'FileText', label: 'History' }
+                            ].map(item => (
+                                <button 
+                                    key={item.id}
+                                    onClick={() => setActiveTab(item.id)}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition ${activeTab === item.id ? 'bg-blue-600 text-white' : 'hover:bg-slate-800 text-slate-400'}`}
+                                >
+                                    {React.createElement(Lucide[item.icon], { size: 20 })}
+                                    {item.label}
+                                </button>
+                            ))}
                         </nav>
                     </aside>
 
-                    {/* Main Content Area */}
-                    <main className="flex-1 flex flex-col overflow-hidden relative">
-                        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 printhidden">
-                            <h2 className="text-xl font-semibold capitalize">{activeTab}</h2>
-                            <div className="flex items-center gap-4">
-                                <span className="text-sm text-slate-500">{settings.location}</span>
-                            </div>
+                    {/* MAIN AREA */}
+                    <main className="flex-1 flex flex-col overflow-hidden">
+                        <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-8 printhidden">
+                            <h2 className="font-bold text-lg capitalize">{activeTab}</h2>
+                            <div className="text-xs text-slate-500 uppercase tracking-widest">{settings.location}</div>
                         </header>
 
                         <div className="flex-1 overflow-y-auto p-8">
-                            {/* Dashboard Stats */}
                             {activeTab === 'dashboard' && (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                                        <div className="flex items-center gap-3 text-slate-500 mb-2">
-                                            <Lucide.TrendingUp size={18} /> <span className="text-sm font-medium">Total Sales</span>
+                                <div className="space-y-6 max-w-6xl">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                        <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+                                            <Lucide.TrendingUp className="text-blue-500 mb-4" />
+                                            <p className="text-slate-500 text-xs font-bold uppercase">Total Revenue</p>
+                                            <h3 className="text-3xl font-black mt-1">{invoices.reduce((a,b) => a + (b.total || 0), 0).toFixed(3)} OMR</h3>
                                         </div>
-                                        <p className="text-2xl font-bold">{invoices.reduce((a, b) => a + (b.total || 0), 0).toFixed(3)} {settings.currency}</p>
+                                        <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+                                            <Lucide.Package className="text-purple-500 mb-4" />
+                                            <p className="text-slate-500 text-xs font-bold uppercase">Inventory Items</p>
+                                            <h3 className="text-3xl font-black mt-1">{inventory.length}</h3>
+                                        </div>
+                                        <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-xl">
+                                            <Lucide.FileText className="text-orange-500 mb-4" />
+                                            <p className="text-slate-500 text-xs font-bold uppercase">Invoices Issued</p>
+                                            <h3 className="text-3xl font-black mt-1">{invoices.length}</h3>
+                                        </div>
                                     </div>
-                                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                                        <div className="flex items-center gap-3 text-slate-500 mb-2">
-                                            <Lucide.Package size={18} /> <span className="text-sm font-medium">Inventory Items</span>
+                                </div>
+                            )}
+
+                            {activeTab === 'inventory' && (
+                                <div className="space-y-4">
+                                    <div className="flex justify-between items-center bg-slate-900 p-4 rounded-2xl border border-slate-800">
+                                        <div className="flex items-center gap-3 bg-slate-950 px-4 py-2 rounded-xl border border-slate-800 w-96">
+                                            <Lucide.Search size={18} className="text-slate-500" />
+                                            <input 
+                                                type="text" 
+                                                placeholder="Search equipment..." 
+                                                className="bg-transparent border-none outline-none w-full text-sm"
+                                                onChange={(e) => setSearchTerm(e.target.value)}
+                                            />
                                         </div>
-                                        <p className="text-2xl font-bold">{inventory.length}</p>
+                                        <button className="bg-blue-600 px-6 py-2 rounded-xl font-bold text-sm flex items-center gap-2">
+                                            <Lucide.Plus size={18} /> Add Item
+                                        </button>
+                                    </div>
+                                    <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-2xl">
+                                        <table className="w-full text-left">
+                                            <thead className="bg-slate-800/50 text-slate-400 text-xs uppercase tracking-widest font-bold">
+                                                <tr>
+                                                    <th className="p-6">Description</th>
+                                                    <th className="p-6">Category</th>
+                                                    <th className="p-6 text-right">Price (OMR)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-800">
+                                                {filteredInventory.map(item => (
+                                                    <tr key={item.id} className="hover:bg-slate-800/30 transition">
+                                                        <td className="p-6 font-bold">{item.name}</td>
+                                                        <td className="p-6 text-slate-500 text-sm">{item.category || 'Studio Gear'}</td>
+                                                        <td className="p-6 text-right text-blue-400 font-mono font-bold">{(item.price || 0).toFixed(3)}</td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
                                     </div>
                                 </div>
                             )}
 
                             {activeTab === 'billing' && (
-                                <div className="bg-white rounded-3xl shadow-xl p-8 max-w-4xl mx-auto border border-slate-100">
-                                    <h2 className="text-2xl font-bold mb-6">New Invoice</h2>
-                                    <p className="text-slate-500">Billing details add cheyyaan ulla advanced screen ivide load aakum.</p>
-                                    {/* Billing module logic comes here */}
-                                </div>
-                            )}
-                            
-                            {activeTab === 'inventory' && (
-                                <div className="space-y-4">
-                                    <div className="flex justify-between items-center">
-                                        <h2 className="text-2xl font-bold">Equipment List</h2>
-                                        <button className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2">
-                                            <Lucide.Plus size={18} /> Add Item
-                                        </button>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-7xl">
+                                    <div className="space-y-6">
+                                        <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
+                                            <h3 className="text-blue-500 font-black text-xs uppercase tracking-[0.2em] mb-6">Client Information</h3>
+                                            <div className="grid gap-4">
+                                                <input type="text" placeholder="Client Name" className="bg-slate-950 border border-slate-800 p-4 rounded-2xl outline-none focus:border-blue-600 transition" onChange={(e) => setClientInfo({...clientInfo, name: e.target.value})} />
+                                                <input type="text" placeholder="Phone Number" className="bg-slate-950 border border-slate-800 p-4 rounded-2xl outline-none focus:border-blue-600 transition" onChange={(e) => setClientInfo({...clientInfo, phone: e.target.value})} />
+                                            </div>
+                                        </div>
+                                        <div className="bg-slate-900 p-8 rounded-[2.5rem] border border-slate-800 shadow-2xl">
+                                            <h3 className="text-purple-500 font-black text-xs uppercase tracking-[0.2em] mb-6">Quick Select</h3>
+                                            <div className="grid grid-cols-1 gap-2 max-h-64 overflow-y-auto pr-2">
+                                                {inventory.map(item => (
+                                                    <button 
+                                                        key={item.id}
+                                                        onClick={() => setCart([...cart, {...item, cartId: Date.now()}])}
+                                                        className="flex justify-between items-center bg-slate-950 p-4 rounded-2xl border border-slate-800 hover:border-blue-600 transition text-left"
+                                                    >
+                                                        <div>
+                                                            <p className="font-bold text-sm">{item.name}</p>
+                                                            <p className="text-[10px] text-slate-500 uppercase">{item.category}</p>
+                                                        </div>
+                                                        <p className="text-blue-400 font-bold text-sm">{item.price.toFixed(3)}</p>
+                                                    </button>
+                                                ))}
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="bg-white rounded-2xl border border-slate-100 overflow-hidden">
-                                        <table className="w-full text-left">
-                                            <thead className="bg-slate-50 border-b">
-                                                <tr>
-                                                    <th className="p-4 font-semibold">Item Name</th>
-                                                    <th className="p-4 font-semibold">Category</th>
-                                                    <th className="p-4 font-semibold">Price</th>
+
+                                    <div className="bg-white text-slate-900 rounded-[2.5rem] p-10 shadow-2xl h-fit border border-slate-100 a4-container">
+                                        <div className="flex justify-between border-b-2 border-slate-100 pb-8 mb-8">
+                                            <div>
+                                                <h1 className="text-2xl font-black tracking-tighter">{settings.senderName}</h1>
+                                                <p className="text-[10px] text-slate-400 uppercase tracking-widest">{settings.location}</p>
+                                            </div>
+                                            <div className="text-right">
+                                                <h2 className="text-3xl font-black text-slate-200">INVOICE</h2>
+                                                <p className="text-xs font-bold">DATE: {new Date().toLocaleDateString()}</p>
+                                            </div>
+                                        </div>
+                                        <div className="mb-8">
+                                            <p className="text-[10px] font-bold text-slate-400 uppercase">Bill To:</p>
+                                            <p className="text-xl font-black">{clientInfo.name || 'CASH CUSTOMER'}</p>
+                                            <p className="text-sm text-slate-500">{clientInfo.phone}</p>
+                                        </div>
+                                        <table className="w-full mb-10">
+                                            <thead>
+                                                <tr className="border-b-2 border-slate-100 text-[10px] uppercase font-bold text-slate-400">
+                                                    <th className="py-4 text-left">Description</th>
+                                                    <th className="py-4 text-right">Amount</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {inventory.map(item => (
-                                                    <tr key={item.id} className="border-b hover:bg-slate-50">
-                                                        <td className="p-4">{item.name}</td>
-                                                        <td className="p-4">{item.category}</td>
-                                                        <td className="p-4">{item.price} {settings.currency}</td>
+                                                {cart.map((item, i) => (
+                                                    <tr key={i} className="border-b border-slate-50 group">
+                                                        <td className="py-4 font-bold text-slate-700">{item.name}</td>
+                                                        <td className="py-4 text-right font-bold">{item.price.toFixed(3)}</td>
                                                     </tr>
                                                 ))}
                                             </tbody>
                                         </table>
+                                        <div className="flex justify-between items-center border-t-2 border-slate-100 pt-8">
+                                            <div className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Grand Total OMR</div>
+                                            <div className="text-4xl font-black text-blue-600">{cart.reduce((s,i) => s + i.price, 0).toFixed(3)}</div>
+                                        </div>
+                                        <button onClick={() => window.print()} className="w-full mt-10 bg-slate-900 text-white py-5 rounded-2xl font-bold tracking-widest uppercase hover:bg-blue-600 transition printhidden">Print Official Bill</button>
                                     </div>
                                 </div>
                             )}
