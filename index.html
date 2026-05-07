@@ -10,14 +10,17 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
+    <style>
+        @media print { .no-print { display: none !important; } .print-only { display: block !important; } body { background: white; color: black; } }
+        .print-only { display: none; }
+    </style>
 </head>
-<body class="bg-slate-900">
+<body class="bg-slate-950">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
-        // Configuration updated with your keys
         const firebaseConfig = {
             apiKey: "AIzaSyB3X7v-yLpE2-tSlate-400-size", 
             authDomain: "sigma-invo.firebaseapp.com",
@@ -27,91 +30,154 @@
             appId: "1:389274383502:web:6e387c978385802"
         };
 
-        // Initialize Firebase
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
+        if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+        const db = firebase.firestore();
 
         function App() {
             const [activeTab, setActiveTab] = useState('dashboard');
+            const [inventory, setInventory] = useState([]);
+            const [cart, setCart] = useState([]);
+            const [customer, setCustomer] = useState({ name: '', phone: '', address: '' });
+            
+            // Temporary Inventory Data (Ithu ningalkku pinne database vazhi update cheyyaam)
+            const initialInventory = [
+                { id: 1, name: 'Sony A7IV Camera', price: 100, category: 'Camera' },
+                { id: 2, name: '85mm f1.4 Lens', price: 50, category: 'Lens' },
+                { id: 3, name: 'Godox AD600 Pro Light', price: 30, category: 'Light' }
+            ];
+
+            const addToCart = (item) => {
+                setCart([...cart, { ...item, cartId: Date.now() }]);
+            };
+
+            const removeFromCart = (id) => {
+                setCart(cart.filter(item => item.cartId !== id));
+            };
+
+            const total = useMemo(() => cart.reduce((sum, item) => sum + item.price, 0), [cart]);
 
             return (
-                <div className="min-h-screen flex flex-col text-white font-sans bg-slate-950">
-                    {/* Header */}
-                    <header className="bg-slate-900 border-b border-slate-800 p-5 flex justify-between items-center shadow-xl">
+                <div className="min-h-screen flex flex-col text-white font-sans">
+                    {/* Header & Nav - Hidden during print */}
+                    <header className="no-print bg-slate-900 border-b border-slate-800 p-5 flex justify-between items-center shadow-xl">
                         <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-xl shadow-lg shadow-blue-500/20">Σ</div>
-                            <div>
-                                <h1 className="text-lg font-bold tracking-wider leading-none">SIGMA LENS STUDIO</h1>
-                                <p className="text-[10px] text-slate-500 tracking-[0.2em] uppercase mt-1">Professional Photography</p>
-                            </div>
+                            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-bold text-xl">Σ</div>
+                            <h1 className="text-lg font-bold tracking-wider">SIGMA LENS STUDIO</h1>
                         </div>
-                        <div className="text-right hidden sm:block">
-                            <div className="text-xs font-medium text-slate-400">SALALAH, OMAN</div>
-                            <div className="text-[10px] text-slate-600">Inventory System v1.0</div>
-                        </div>
+                        <nav className="flex gap-2">
+                            {['dashboard', 'inventory', 'billing'].map(tab => (
+                                <button key={tab} onClick={() => setActiveTab(tab)} className={`px-4 py-2 rounded-lg text-sm capitalize ${activeTab === tab ? 'bg-blue-600' : 'hover:bg-slate-800'}`}>
+                                    {tab}
+                                </button>
+                            ))}
+                        </nav>
                     </header>
 
-                    {/* Navigation */}
-                    <nav className="bg-slate-900/50 p-2 flex gap-2 justify-center border-b border-slate-800">
-                        <button 
-                            onClick={() => setActiveTab('dashboard')} 
-                            className={`px-8 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'dashboard' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800'}`}>
-                            Dashboard
-                        </button>
-                        <button 
-                            onClick={() => setActiveTab('billing')} 
-                            className={`px-8 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ${activeTab === 'billing' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'text-slate-400 hover:bg-slate-800'}`}>
-                            Billing
-                        </button>
-                    </nav>
+                    <main className="flex-1 p-6 no-print">
+                        {activeTab === 'dashboard' && (
+                            <div className="max-w-4xl mx-auto text-center py-20">
+                                <h2 className="text-3xl font-bold mb-4 text-blue-400">Welcome, Sajin</h2>
+                                <p className="text-slate-400">Manage your studio operations from here.</p>
+                            </div>
+                        )}
 
-                    {/* Main Content */}
-                    <main className="flex-1 p-6 md:p-10">
-                        {activeTab === 'dashboard' ? (
-                            <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="md:col-span-3 bg-gradient-to-r from-blue-600/20 to-transparent border border-blue-500/20 p-8 rounded-3xl mb-4">
-                                    <h2 className="text-2xl font-bold mb-2">Welcome back, Sajin</h2>
-                                    <p className="text-slate-400 text-sm">Your studio management system is connected and ready.</p>
-                                </div>
-                                
-                                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
-                                    <p className="text-slate-500 text-xs uppercase tracking-widest mb-2">Location</p>
-                                    <p className="text-lg font-semibold">Salalah, Dhofar</p>
-                                </div>
-                                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
-                                    <p className="text-slate-500 text-xs uppercase tracking-widest mb-2">Database</p>
-                                    <p className="text-lg font-semibold text-green-400">Connected</p>
-                                </div>
-                                <div className="bg-slate-900 border border-slate-800 p-6 rounded-2xl">
-                                    <p className="text-slate-500 text-xs uppercase tracking-widest mb-2">App Status</p>
-                                    <p className="text-lg font-semibold text-blue-400">Live</p>
+                        {activeTab === 'inventory' && (
+                            <div className="max-w-4xl mx-auto bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                                <h2 className="text-xl font-bold mb-6">Studio Inventory</h2>
+                                <div className="grid gap-4">
+                                    {initialInventory.map(item => (
+                                        <div key={item.id} className="flex justify-between items-center bg-slate-800 p-4 rounded-xl">
+                                            <div>
+                                                <p className="font-bold">{item.name}</p>
+                                                <p className="text-xs text-slate-400">{item.category}</p>
+                                            </div>
+                                            <div className="flex items-center gap-4">
+                                                <span className="text-blue-400 font-bold">OMR {item.price}</span>
+                                                <button onClick={() => addToCart(item)} className="bg-blue-600 px-3 py-1 rounded text-xs">Add to Bill</button>
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             </div>
-                        ) : (
-                            <div className="max-w-4xl mx-auto bg-white text-slate-900 rounded-[2rem] p-10 shadow-2xl overflow-hidden">
-                                <div className="flex justify-between items-start border-b border-slate-100 pb-8 mb-8">
-                                    <div>
-                                        <h2 className="text-3xl font-black tracking-tighter">INVOICE</h2>
-                                        <p className="text-slate-400 text-sm mt-1">Sigma Lens Studio Manager</p>
+                        )}
+
+                        {activeTab === 'billing' && (
+                            <div className="max-w-5xl mx-auto grid grid-cols-1 md:grid-cols-2 gap-8">
+                                {/* Customer & Cart */}
+                                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800">
+                                    <h3 className="font-bold mb-4 text-blue-400">Customer Details</h3>
+                                    <div className="space-y-3 mb-6">
+                                        <input type="text" placeholder="Customer Name" className="w-full bg-slate-800 p-3 rounded-lg border border-slate-700 outline-none" onChange={(e) => setCustomer({...customer, name: e.target.value})} />
+                                        <input type="text" placeholder="Phone Number" className="w-full bg-slate-800 p-3 rounded-lg border border-slate-700 outline-none" onChange={(e) => setCustomer({...customer, phone: e.target.value})} />
                                     </div>
-                                    <div className="text-right">
-                                        <p className="font-bold text-sm">Date: {new Date().toLocaleDateString()}</p>
-                                        <p className="text-xs text-slate-400">No: #INV-TEMP</p>
+                                    <h3 className="font-bold mb-4 text-blue-400">Selected Items</h3>
+                                    <div className="space-y-2">
+                                        {cart.map(item => (
+                                            <div key={item.cartId} className="flex justify-between bg-slate-800/50 p-3 rounded-lg text-sm">
+                                                <span>{item.name}</span>
+                                                <div className="flex gap-3">
+                                                    <span>OMR {item.price}</span>
+                                                    <button onClick={() => removeFromCart(item.cartId)} className="text-red-500">✕</button>
+                                                </div>
+                                            </div>
+                                        ))}
+                                        {cart.length === 0 && <p className="text-slate-500 text-center py-4">No items in cart</p>}
                                     </div>
                                 </div>
-                                
-                                <div className="py-20 text-center border-2 border-dashed border-slate-100 rounded-2xl">
-                                    <p className="text-slate-400 font-medium">Billing module is ready for configuration.</p>
-                                    <button className="mt-4 bg-slate-900 text-white px-6 py-2 rounded-full text-sm font-bold">Start New Entry</button>
+
+                                {/* Summary */}
+                                <div className="bg-slate-900 p-6 rounded-2xl border border-slate-800 flex flex-col justify-between">
+                                    <div>
+                                        <h3 className="font-bold mb-6">Invoice Summary</h3>
+                                        <div className="flex justify-between text-2xl font-black mb-2">
+                                            <span>TOTAL</span>
+                                            <span className="text-blue-500">OMR {total.toFixed(2)}</span>
+                                        </div>
+                                        <p className="text-xs text-slate-500">VAT (0%) Included</p>
+                                    </div>
+                                    <button onClick={() => window.print()} className="w-full bg-blue-600 py-4 rounded-xl font-bold mt-10 hover:bg-blue-700 shadow-lg shadow-blue-600/20">PRINT INVOICE</button>
                                 </div>
                             </div>
                         )}
                     </main>
-                    
-                    <footer className="p-6 text-center text-slate-600 text-[10px] tracking-widest">
-                        &copy; 2026 SIGMA LENS STUDIO - SALALAH
-                    </footer>
+
+                    {/* PRINT ONLY SECTION */}
+                    <div className="print-only p-10 text-black bg-white min-h-screen">
+                        <div className="flex justify-between border-b-2 pb-8 mb-8">
+                            <div>
+                                <h1 className="text-3xl font-black">SIGMA LENS STUDIO</h1>
+                                <p>Salalah, Oman | Ph: +968 78385802</p>
+                            </div>
+                            <div className="text-right">
+                                <h2 className="text-xl font-bold">INVOICE</h2>
+                                <p>Date: {new Date().toLocaleDateString()}</p>
+                            </div>
+                        </div>
+                        <div className="mb-8">
+                            <h3 className="font-bold border-b mb-2 uppercase text-xs">Customer Details:</h3>
+                            <p className="text-lg font-bold">{customer.name || 'Cash Customer'}</p>
+                            <p>{customer.phone}</p>
+                        </div>
+                        <table className="w-full mb-8">
+                            <thead>
+                                <tr className="border-b-2 text-left">
+                                    <th className="py-2">Item Description</th>
+                                    <th className="py-2 text-right">Price</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {cart.map((item, index) => (
+                                    <tr key={index} className="border-b">
+                                        <td className="py-3">{item.name}</td>
+                                        <td className="py-3 text-right">OMR {item.price.toFixed(2)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                        <div className="text-right">
+                            <p className="text-3xl font-black">TOTAL: OMR {total.toFixed(2)}</p>
+                        </div>
+                    </div>
                 </div>
             );
         }
