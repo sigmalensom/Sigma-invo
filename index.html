@@ -3,30 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sigma Invo - Professional Studio Manager</title>
+    <title>Sigma Lens Studio - Management System</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-auth-compat.js"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
-        body { background-color: #020617; color: white; font-family: 'Plus Jakarta Sans', sans-serif; overflow: hidden; }
-        .sidebar-btn { transition: all 0.2s; border-radius: 12px; display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 16px; font-weight: 600; font-size: 14px; margin-bottom: 4px; }
-        .btn-active { background: #2563eb !important; color: white !important; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3); }
-        .glass-card { background: #0f172a; border: 1px solid #1e293b; border-radius: 24px; }
-        @media print { .no-print { display: none !important; } body { background: white; color: black; } }
-        .custom-scroll::-webkit-scrollbar { width: 5px; }
-        .custom-scroll::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 10px; }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
+        @media print { .no-print { display: none !important; } .a4-container { width: 100% !important; padding: 0 !important; box-shadow: none !important; } }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        // Lucide Icons Wrapper
+        const Icon = ({ name, size = 20, className = "" }) => {
+            const LucideIcon = lucide.icons[name.charAt(0).toUpperCase() + name.slice(1)] || lucide.icons.HelpCircle;
+            return <LucideIcon size={size} className={className} />;
+        };
+
+        const { useState, useEffect, useMemo } = React;
 
         const firebaseConfig = {
             apiKey: "AIzaSyB3X7v-yLpE2-tSlate-400-size", 
@@ -40,154 +44,231 @@
         if (!firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
         const db = firebase.firestore();
         const auth = firebase.auth();
+        const appId = 'sigma-studio-salalah';
 
         function App() {
+            const [user, setUser] = useState(null);
+            const [loading, setLoading] = useState(true);
             const [activeTab, setActiveTab] = useState('dashboard');
             const [inventory, setInventory] = useState([]);
+            const [invoices, setInvoices] = useState([]);
             const [cart, setCart] = useState([]);
-            const [client, setClient] = useState({ name: '', phone: '' });
-            const [loading, setLoading] = useState(true);
-            const [newItem, setNewItem] = useState({ name: '', price: '' });
+            const [clientName, setClientName] = useState('');
+            const [clientPhone, setClientPhone] = useState('+968 ');
+            const [selectedItem, setSelectedItem] = useState('');
+            const [quantity, setQuantity] = useState(1);
+            const [paymentStatus, setPaymentStatus] = useState('Paid');
+            const [selectedInvoice, setSelectedInvoice] = useState(null);
+            const [newItem, setNewItem] = useState({ name: '', category: 'Camera', stock: 1, price: 0 });
 
+            // Auth State
             useEffect(() => {
-                // Safety timeout to force load UI even if Firebase is slow
-                const safetyTimer = setTimeout(() => setLoading(false), 5000);
-
-                const unsubAuth = auth.onAuthStateChanged(user => {
-                    if (user) {
-                        const unsubInv = db.collection('inventory').onSnapshot(s => {
-                            setInventory(s.docs.map(d => ({id: d.id, ...d.data()})));
-                            setLoading(false);
-                            clearTimeout(safetyTimer);
-                        }, () => setLoading(false));
-                        return () => unsubInv();
-                    } else {
-                        auth.signInAnonymously();
-                    }
+                const unsubscribe = auth.onAuthStateChanged(u => {
+                    if (u) { setUser(u); setLoading(false); }
+                    else { auth.signInAnonymously(); }
                 });
-                return () => {
-                    unsubAuth();
-                    clearTimeout(safetyTimer);
-                };
+                return () => unsubscribe();
             }, []);
 
-            const addGear = () => {
-                if(newItem.name && newItem.price) {
-                    db.collection('inventory').add({ name: newItem.name, price: Number(newItem.price) });
-                    setNewItem({ name: '', price: '' });
-                }
+            // Data Sync
+            useEffect(() => {
+                if (!user) return;
+                const unsubInv = db.collection('inventory').onSnapshot(s => {
+                    setInventory(s.docs.map(d => ({id: d.id, ...d.data()})));
+                });
+                const unsubInvc = db.collection('invoices').orderBy('createdAt', 'desc').onSnapshot(s => {
+                    setInvoices(s.docs.map(d => ({id: d.id, ...d.data()})));
+                });
+                return () => { unsubInv(); unsubInvc(); };
+            }, [user]);
+
+            const handleAddInventory = async (e) => {
+                e.preventDefault();
+                await db.collection('inventory').add({ ...newItem, price: parseFloat(newItem.price), stock: parseInt(newItem.stock), createdAt: new Date().toISOString() });
+                setNewItem({ name: '', category: 'Camera', stock: 1, price: 0 });
             };
 
-            const total = cart.reduce((s, i) => s + (Number(i.price) || 0), 0);
+            const handleAddToCart = () => {
+                const item = inventory.find(i => i.id === selectedItem);
+                if (!item) return;
+                setCart([...cart, { ...item, qty: quantity, cartId: Date.now() }]);
+                setSelectedItem(''); setQuantity(1);
+            };
 
-            if (loading) return (
-                <div className="h-screen flex flex-col items-center justify-center bg-[#020617]">
-                    <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="mt-4 text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px]">Initializing Sigma Hub...</p>
-                </div>
-            );
+            const cartTotal = cart.reduce((sum, c) => sum + (c.price * c.qty), 0);
+
+            const handleGenerateInvoice = async () => {
+                const invData = {
+                    invoiceNumber: `INV-${Math.floor(1000 + Math.random() * 9000)}`,
+                    clientName, clientPhone, items: cart, total: cartTotal,
+                    paymentStatus, createdAt: new Date().toISOString(), date: new Date().toLocaleDateString()
+                };
+                const docRef = await db.collection('invoices').add(invData);
+                setSelectedInvoice({ id: docRef.id, ...invData });
+                setCart([]); setClientName(''); setClientPhone('+968 ');
+                setActiveTab('invoices');
+            };
+
+            if (loading) return <div className="h-screen flex items-center justify-center bg-slate-900 text-white uppercase tracking-widest text-xs">Initializing Sigma System...</div>;
 
             return (
                 <div className="flex h-screen overflow-hidden">
-                    {/* Sidebar Area */}
-                    <aside className="w-64 bg-[#0f172a] border-r border-[#1e293b] p-6 flex flex-col no-print">
-                        <div className="flex items-center gap-3 mb-10 px-2">
-                            <div className="bg-blue-600 h-9 w-9 rounded-xl flex items-center justify-center font-bold text-white shadow-lg shadow-blue-600/20 text-lg">Σ</div>
-                            <h1 className="text-xl font-black italic tracking-tighter text-white">SIGMA INVO</h1>
+                    {/* Sidebar */}
+                    <aside className="w-64 bg-slate-900 text-white p-6 flex flex-col no-print">
+                        <div className="flex items-center gap-3 mb-10 border-b border-slate-800 pb-6">
+                            <div className="bg-blue-600 p-2 rounded-lg font-bold">Σ</div>
+                            <h1 className="font-bold tracking-tighter text-lg">SIGMA LENS</h1>
                         </div>
-                        
-                        <nav className="flex-1 space-y-1">
-                            <button onClick={()=>setActiveTab('dashboard')} className={`sidebar-btn ${activeTab==='dashboard'?'btn-active':'text-slate-400'}`}>Dashboard</button>
-                            <button onClick={()=>setActiveTab('billing')} className={`sidebar-btn ${activeTab==='billing'?'btn-active':'text-slate-400'}`}>New Invoice</button>
-                            <button onClick={()=>setActiveTab('inventory')} className={`sidebar-btn ${activeTab==='inventory'?'btn-active':'text-slate-400'}`}>Equipment</button>
+                        <nav className="flex-1 space-y-2">
+                            <button onClick={() => {setActiveTab('dashboard'); setSelectedInvoice(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${activeTab==='dashboard'?'bg-blue-600':'hover:bg-slate-800'}`}>
+                                <Icon name="LayoutDashboard" /> Dashboard
+                            </button>
+                            <button onClick={() => {setActiveTab('billing'); setSelectedInvoice(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${activeTab==='billing'?'bg-blue-600':'hover:bg-slate-800'}`}>
+                                <Icon name="ShoppingCart" /> Create Bill
+                            </button>
+                            <button onClick={() => {setActiveTab('invoices'); setSelectedInvoice(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${activeTab==='invoices'?'bg-blue-600':'hover:bg-slate-800'}`}>
+                                <Icon name="FileText" /> Invoices
+                            </button>
+                            <button onClick={() => {setActiveTab('inventory'); setSelectedInvoice(null);}} className={`w-full flex items-center gap-3 p-3 rounded-xl transition ${activeTab==='inventory'?'bg-blue-600':'hover:bg-slate-800'}`}>
+                                <Icon name="Package" /> Inventory
+                            </button>
                         </nav>
-
-                        <div className="mt-auto pt-6 border-t border-slate-800/50">
-                            <p className="text-[10px] font-black text-slate-600 uppercase tracking-widest text-center">Salalah, Oman</p>
-                        </div>
+                        <div className="mt-auto text-[10px] text-slate-500 text-center font-bold tracking-widest uppercase">Salalah, Oman</div>
                     </aside>
 
-                    {/* Content Area */}
-                    <main className="flex-1 bg-[#020617] overflow-y-auto custom-scroll p-10 no-print">
+                    {/* Main */}
+                    <main className="flex-1 overflow-y-auto p-10 bg-slate-50">
                         {activeTab === 'dashboard' && (
-                            <div className="max-w-5xl animate-in fade-in duration-700">
-                                <h2 className="text-4xl font-black italic tracking-tight mb-8">Studio Overview</h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="glass-card p-10 bg-slate-900/50 relative overflow-hidden">
-                                        <p className="text-blue-500 text-[10px] font-black uppercase tracking-widest mb-2">Inventory Items</p>
-                                        <h3 className="text-6xl font-black">{inventory.length}</h3>
-                                        <div className="absolute top-0 right-0 p-8 opacity-5 text-5xl italic font-black">GEAR</div>
+                            <div className="max-w-5xl space-y-8">
+                                <h2 className="text-3xl font-black text-slate-900">Dashboard</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                                        <p className="text-xs font-bold text-slate-400 uppercase mb-2">Total Gear</p>
+                                        <h3 className="text-4xl font-black">{inventory.length}</h3>
                                     </div>
-                                    <div className="glass-card p-10 bg-slate-900/50">
-                                        <p className="text-green-500 text-[10px] font-black uppercase tracking-widest mb-2">App Status</p>
-                                        <h3 className="text-4xl font-black uppercase">Live & Ready</h3>
+                                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                                        <p className="text-xs font-bold text-slate-400 uppercase mb-2">Total Invoices</p>
+                                        <h3 className="text-4xl font-black">{invoices.length}</h3>
+                                    </div>
+                                    <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-200">
+                                        <p className="text-xs font-bold text-slate-400 uppercase mb-2">Total Revenue (OMR)</p>
+                                        <h3 className="text-4xl font-black text-blue-600">{invoices.reduce((s,i)=>s+i.total, 0).toFixed(3)}</h3>
                                     </div>
                                 </div>
                             </div>
                         )}
 
                         {activeTab === 'inventory' && (
-                            <div className="max-w-4xl space-y-6">
-                                <div className="glass-card p-6 bg-slate-900/50 flex gap-4">
-                                    <input placeholder="Gear Name (e.g. Sony A1)" className="flex-1 bg-slate-950 border border-slate-800 p-4 rounded-xl outline-none" value={newItem.name} onChange={e=>setNewItem({...newItem, name:e.target.value})} />
-                                    <input placeholder="OMR" className="w-28 bg-slate-950 border border-slate-800 p-4 rounded-xl outline-none" value={newItem.price} onChange={e=>setNewItem({...newItem, price:e.target.value})} />
-                                    <button onClick={addGear} className="bg-blue-600 px-8 rounded-xl font-black text-xs uppercase tracking-widest hover:bg-blue-700 transition">Add Gear</button>
-                                </div>
-                                <div className="glass-card overflow-hidden bg-slate-900/50">
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                                <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
                                     <table className="w-full text-left">
-                                        <thead className="text-[10px] uppercase text-slate-500 font-black tracking-widest bg-[#020617]/80">
-                                            <tr><th className="p-6">Description</th><th className="p-6 text-right">Daily Rate</th></tr>
+                                        <thead className="bg-slate-50 text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b">
+                                            <tr><th className="p-6">Item</th><th className="p-6">Stock</th><th className="p-6 text-right">Price</th></tr>
                                         </thead>
-                                        <tbody className="divide-y divide-slate-800/50">
-                                            {inventory.map(item => (
-                                                <tr key={item.id} className="hover:bg-blue-600/5 transition">
-                                                    <td className="p-6 font-extrabold text-slate-200 uppercase text-sm">{item.name}</td>
-                                                    <td className="p-6 text-right font-black text-blue-400 text-lg tracking-tighter">{Number(item.price).toFixed(3)}</td>
+                                        <tbody className="divide-y">
+                                            {inventory.map(i => (
+                                                <tr key={i.id} className="hover:bg-slate-50 transition">
+                                                    <td className="p-6 font-bold">{i.name}</td>
+                                                    <td className="p-6">{i.stock}</td>
+                                                    <td className="p-6 text-right font-bold text-blue-600">{i.price.toFixed(3)}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
+                                <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm h-fit">
+                                    <h3 className="font-bold mb-6">Add New Asset</h3>
+                                    <form onSubmit={handleAddInventory} className="space-y-4">
+                                        <input className="w-full bg-slate-50 p-4 rounded-xl outline-none border border-slate-100" placeholder="Item Name" value={newItem.name} onChange={e=>setNewItem({...newItem, name: e.target.value})} required />
+                                        <input className="w-full bg-slate-50 p-4 rounded-xl outline-none border border-slate-100" type="number" placeholder="Stock" value={newItem.stock} onChange={e=>setNewItem({...newItem, stock: e.target.value})} required />
+                                        <input className="w-full bg-slate-50 p-4 rounded-xl outline-none border border-slate-100" type="number" step="0.001" placeholder="Price (OMR)" value={newItem.price} onChange={e=>setNewItem({...newItem, price: e.target.value})} required />
+                                        <button className="w-full bg-slate-900 text-white py-4 rounded-xl font-bold uppercase text-xs tracking-widest shadow-lg">Add to Inventory</button>
+                                    </form>
+                                </div>
                             </div>
                         )}
 
                         {activeTab === 'billing' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                                <div className="space-y-6">
-                                    <div className="glass-card p-8 bg-slate-900/50">
-                                        <p className="text-blue-500 font-black text-[10px] uppercase mb-6 tracking-widest">Client Details</p>
-                                        <input placeholder="Customer Name" className="w-full bg-[#020617] border border-slate-800 p-5 rounded-2xl mb-4 outline-none" onChange={e=>setClient({...client, name:e.target.value})} />
-                                        <input placeholder="WhatsApp Number" className="w-full bg-[#020617] border border-slate-800 p-5 rounded-2xl outline-none" onChange={e=>setClient({...client, phone:e.target.value})} />
+                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                                <div className="lg:col-span-2 space-y-6">
+                                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                                        <h3 className="font-bold mb-6 text-slate-400 uppercase text-[10px] tracking-widest">Client Details</h3>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <input className="w-full bg-slate-50 p-4 rounded-xl outline-none border border-slate-100 font-bold" placeholder="Customer Name" value={clientName} onChange={e=>setClientName(e.target.value)} />
+                                            <input className="w-full bg-slate-50 p-4 rounded-xl outline-none border border-slate-100 font-bold" placeholder="WhatsApp Number" value={clientPhone} onChange={e=>setClientPhone(e.target.value)} />
+                                        </div>
                                     </div>
-                                    <div className="glass-card p-8 bg-slate-900/50 h-96 overflow-y-auto custom-scroll">
-                                        <p className="text-purple-500 font-black text-[10px] uppercase mb-6 tracking-widest">Select Equipment</p>
-                                        {inventory.map(item => (
-                                            <button key={item.id} onClick={()=>setCart([...cart, {...item, cid:Date.now()}])} className="w-full flex justify-between items-center p-4 mb-2 bg-[#020617] rounded-xl border border-slate-800 hover:border-blue-600 transition text-left group">
-                                                <div><p className="font-bold text-sm uppercase">{item.name}</p></div>
-                                                <p className="font-black text-blue-400 tracking-tighter">{Number(item.price).toFixed(3)}</p>
-                                            </button>
-                                        ))}
+                                    <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
+                                        <h3 className="font-bold mb-6 text-slate-400 uppercase text-[10px] tracking-widest">Select Equipment</h3>
+                                        <div className="flex gap-4">
+                                            <select className="flex-1 bg-slate-50 p-4 rounded-xl outline-none border border-slate-100 font-bold" value={selectedItem} onChange={e=>setSelectedItem(e.target.value)}>
+                                                <option value="">-- Select Gear --</option>
+                                                {inventory.map(i => <option key={i.id} value={i.id}>{i.name} ({i.price.toFixed(3)})</option>)}
+                                            </select>
+                                            <input type="number" className="w-20 bg-slate-50 p-4 rounded-xl outline-none border border-slate-100 text-center font-bold" value={quantity} onChange={e=>setQuantity(parseInt(e.target.value))} />
+                                            <button onClick={handleAddToCart} className="bg-blue-600 text-white px-8 rounded-xl font-bold">Add</button>
+                                        </div>
                                     </div>
                                 </div>
-
-                                <div className="bg-white text-slate-950 p-12 rounded-[3rem] shadow-2xl h-fit border border-slate-100 flex flex-col">
-                                    <div className="flex justify-between border-b-2 border-slate-50 pb-10 mb-10">
-                                        <div><h1 className="text-3xl font-black italic tracking-tighter uppercase">Sigma Studio</h1><p className="text-[10px] text-slate-400 font-black uppercase tracking-widest mt-1">Salalah, Sultanate of Oman</p></div>
-                                        <div className="text-right font-black text-slate-100 text-4xl">INVOICE</div>
+                                <div className="bg-white p-8 rounded-[2rem] border-2 border-slate-900 shadow-2xl flex flex-col h-fit">
+                                    <h3 className="font-bold text-xl mb-6">Current Bill</h3>
+                                    <div className="flex-1 space-y-4 mb-6 max-h-60 overflow-y-auto">
+                                        {cart.map((c,idx) => (
+                                            <div key={idx} className="flex justify-between items-center border-b pb-2">
+                                                <div><p className="font-bold text-sm">{c.name}</p><p className="text-[10px] text-slate-400">{c.qty} unit</p></div>
+                                                <p className="font-bold">{(c.price*c.qty).toFixed(3)}</p>
+                                            </div>
+                                        ))}
                                     </div>
-                                    <div className="mb-10 font-bold uppercase"><p className="text-[10px] text-slate-300 tracking-widest">Bill To:</p><p className="text-2xl text-slate-800">{client.name || 'Walk-in Client'}</p></div>
-                                    <table className="w-full mb-10">
-                                        <thead><tr className="border-b-2 border-slate-50 text-[10px] text-slate-300 font-black uppercase tracking-widest"><th className="pb-4 text-left">Item</th><th className="pb-4 text-right">Total</th></tr></thead>
-                                        <tbody>
-                                            {cart.map((c,i)=>(<tr key={i} className="border-b border-slate-50"><td className="py-4 font-bold text-slate-600 uppercase text-xs">{c.name}</td><td className="py-4 text-right font-black text-slate-900">{Number(c.price).toFixed(3)}</td></tr>))}
+                                    <div className="border-t pt-6 mb-6">
+                                        <div className="flex justify-between items-center"><span className="font-bold text-slate-400 uppercase text-[10px]">Grand Total</span><span className="text-3xl font-black text-blue-600">{cartTotal.toFixed(3)}</span></div>
+                                    </div>
+                                    <button onClick={handleGenerateInvoice} disabled={cart.length===0} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs tracking-widest shadow-xl disabled:opacity-50">Generate & Save</button>
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'invoices' && !selectedInvoice && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {invoices.map(inv => (
+                                    <div key={inv.id} onClick={()=>setSelectedInvoice(inv)} className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm hover:shadow-xl transition cursor-pointer group">
+                                        <div className="flex justify-between items-start mb-4">
+                                            <div><h4 className="font-black group-hover:text-blue-600 transition">{inv.clientName}</h4><p className="text-[10px] text-slate-400 font-bold tracking-widest uppercase">{inv.invoiceNumber}</p></div>
+                                            <span className="bg-emerald-100 text-emerald-700 text-[10px] px-3 py-1 rounded-full font-bold">PAID</span>
+                                        </div>
+                                        <div className="flex justify-between items-end border-t pt-4">
+                                            <p className="text-xs font-bold text-slate-400">{inv.date}</p>
+                                            <p className="text-xl font-black">{inv.total.toFixed(3)}</p>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {selectedInvoice && (
+                            <div className="max-w-3xl mx-auto">
+                                <div className="flex justify-between mb-8 no-print">
+                                    <button onClick={()=>setSelectedInvoice(null)} className="flex items-center gap-2 font-bold text-slate-400"><Icon name="ArrowLeft" /> Back</button>
+                                    <button onClick={()=>window.print()} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold flex items-center gap-2 shadow-lg shadow-blue-500/20"><Icon name="Printer" /> Print Bill</button>
+                                </div>
+                                <div className="bg-white p-16 shadow-2xl border border-slate-100 a4-container text-slate-900 min-h-[800px]">
+                                    <div className="flex justify-between border-b-2 border-slate-50 pb-10 mb-10">
+                                        <div><h1 className="text-3xl font-black italic tracking-tighter">SIGMA STUDIO</h1><p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Salalah, Sultanate of Oman</p></div>
+                                        <div className="text-right"><h2 className="text-4xl font-black text-slate-100">INVOICE</h2><p className="font-bold text-slate-500">{selectedInvoice.invoiceNumber}</p></div>
+                                    </div>
+                                    <div className="mb-10"><p className="text-[10px] font-bold text-slate-300 uppercase mb-1">Customer</p><p className="text-2xl font-black uppercase">{selectedInvoice.clientName}</p><p className="font-bold text-slate-400">{selectedInvoice.clientPhone}</p></div>
+                                    <table className="w-full mb-10 text-left">
+                                        <thead className="border-b-2 text-[10px] uppercase text-slate-300 font-bold"><tr><th className="pb-4">Item Description</th><th className="pb-4 text-right">Total OMR</th></tr></thead>
+                                        <tbody className="divide-y divide-slate-50">
+                                            {selectedInvoice.items.map((item, idx) => (
+                                                <tr key={idx}><td className="py-5 font-bold text-slate-600">{item.name} ({item.qty} Unit)</td><td className="py-5 text-right font-black">{(item.price * item.qty).toFixed(3)}</td></tr>
+                                            ))}
                                         </tbody>
                                     </table>
-                                    <div className="flex justify-between items-center pt-8 border-t-2 border-slate-100">
-                                        <span className="text-xs font-black text-slate-300 uppercase tracking-widest">Grand Total OMR</span>
-                                        <span className="text-5xl font-black text-blue-600 tracking-tighter">{total.toFixed(3)}</span>
+                                    <div className="flex justify-between items-center border-t-2 pt-10 mt-auto">
+                                        <p className="text-[10px] font-bold text-slate-300 uppercase">Grand Total</p>
+                                        <p className="text-5xl font-black text-blue-600">{selectedInvoice.total.toFixed(3)}</p>
                                     </div>
-                                    <button onClick={()=>window.print()} className="w-full mt-10 bg-slate-950 text-white py-6 rounded-2xl font-black uppercase tracking-widest hover:bg-blue-600 transition shadow-xl no-print">Print Official Bill</button>
-                                    <button onClick={()=>setCart([])} className="w-full mt-4 text-[10px] text-slate-300 font-black uppercase no-print tracking-[0.3em]">Reset</button>
                                 </div>
                             </div>
                         )}
